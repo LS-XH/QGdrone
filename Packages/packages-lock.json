@@ -194,7 +194,7 @@
       "url": "https://packages.unity.com"
     },
     "org.nesnausk.gaussian-splatting": {
-      "version": "file:ThirdParty/UnityGaussianSplatting",
+      "version": "file:../ThirdParty/UnityGaussianSplatting",
       "depth": 0,
       "source": "local",
       "dependencies": {

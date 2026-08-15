@@ -1,0 +1,14 @@
+{
+  "geofence": {
+    "min_lat": 23.1280,
+    "max_lat": 23.1310,
+    "min_lon": 113.2630,
+    "max_lon": 113.2660
+  },
+  "mission": [
+    {"command": "TAKEOFF", "lat": 23.1291, "lon": 113.2644, "alt": 10, "speed": 3},
+    {"command": "WAYPOINT", "lat": 23.1298, "lon": 113.2650, "alt": 20, "speed": 5},
+    {"command": "WAYPOINT", "lat": 23.1302, "lon": 113.2642, "alt": 20, "speed": 5},
+    {"command": "LAND", "lat": 23.1291, "lon": 113.2644, "alt": 0}
+  ]
+}

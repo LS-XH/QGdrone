@@ -1,0 +1,29 @@
+# ============ Unity 生成目录（可自动重建，不提交）============
+Library/
+Temp/
+obj/
+Logs/
+UserSettings/
+Build/
+Builds/
+.vs/
+.idea/
+
+# ============ Unity 生成文件 ============
+*.csproj
+*.sln
+*.csproj.user
+*.sln.DotSettings.user
+
+# ============ 原始点云数据（可经 tools/ 脚本重新下载，不提交）============
+data/
+QGstudio_SummerCamp/Assets/Data/
+QGstudio_SummerCampPlus/Assets/Data/
+
+# ============ 高斯泼溅生成数据（由 .ply 导入生成，可重新生成，不提交）============
+QGstudio_SummerCampPlus/Assets/GaussianAssets/
+
+# ============ 操作系统文件 ============
+.DS_Store
+Thumbs.db
+desktop.ini

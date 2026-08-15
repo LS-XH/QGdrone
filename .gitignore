@@ -1,0 +1,47 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+
+# IDE / local settings
+.idea/
+.vscode/
+*.user
+*.userosscache
+*.suo
+
+# Build outputs
+Objects/
+Listings/
+*.axf
+*.elf
+*.map
+*.lst
+*.d
+*.o
+*.lnp
+*.scvd
+*.dbgconf
+
+# Generated reports and caches
+.matplotlib/
+reports/
+.pytest-tmp/
+*.TMP
+*.tmp
+*.log
+
+# Colcon runtime logs created from the repository root
+/log/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Secrets
+*.key
+*.pem
+*.token
+.env

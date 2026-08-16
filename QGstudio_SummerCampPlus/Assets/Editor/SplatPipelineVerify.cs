@@ -53,7 +53,7 @@ public static class SplatPipelineVerify
         }
     }
 
-    // ================= 菜单 2：步骤化路径（含方案 B 拆分）================
+    // ================= 菜单 2：步骤化路径（含方案 F 拆分）================
     [MenuItem("Tools/QG Studio/Verify Split Pipeline (Step1+Step2)")]
     public static void VerifySplit()
     {
@@ -65,13 +65,19 @@ public static class SplatPipelineVerify
         try
         {
             // —— 与 SplatLoadingManager.ConvertAsync 相同的步骤顺序（同步版）——
-            NativeArray<InputSplatData> splats = pipeline.LoadInputFileStep1(GetPlyPath()); // 方案 B Step1（原 ReadFile 前段）
+            var io = pipeline.LoadInputFileStep1(GetPlyPath()); // 方案 F Step1（IO 段：读盘 + 属性校验）
+            if (!io.plyRawData.IsCreated || pipeline.LastErrorMessage != null)
+            {
+                Debug.LogError($"[VerifySplit] FAIL: 解析失败 {pipeline.LastErrorMessage}");
+                return;
+            }
+            NativeArray<InputSplatData> splats = pipeline.LoadInputFileStep2(io.plyRawData, io.splatCount, io.vertexStride, io.attributes); // 方案 F Step2（解析 + SH 重排 + Linearize）
+            io.plyRawData.Dispose(); // Persistent 用完即释
             if (!splats.IsCreated || splats.Length == 0)
             {
                 Debug.LogError($"[VerifySplit] FAIL: 解析失败 {pipeline.LastErrorMessage}");
                 return;
             }
-            pipeline.LoadInputFileStep2(splats); // 方案 B Step2（LinearizeDataJob）
             var (boundsMin, boundsMax) = pipeline.CalcBounds(splats);
             pipeline.ReorderMorton(splats, boundsMin, boundsMax);
             pipeline.ClusterSHs(splats, out var clusteredSHs, out var shIndices);

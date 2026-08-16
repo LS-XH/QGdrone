@@ -66,35 +66,53 @@ namespace QGStudio.SplatLoader
         }
 
         // ================================================================
-        // 运行时异步解析分段（方案 B，2026-08-16 新增；原 ReadFile 保持不变）
-        // ReadFileStep1：IO + 纯函数段，无 Job.Schedule，可在后台线程调用
-        //   PLY 读取 → 属性校验 → 数据重排 → SH 重排（与原 ReadFile 前段逐行一致）
-        //   ⚠️ SPZ 分支不支持：SPZFileReader 内部含 UnpackDataJob（主线程限定）
-        // ReadFileStep2：LinearizeDataJob（主线程限定），消费 Step1 产物
-        // 两段合起来与 ReadFile 数据流完全等价（逐字节验证兜底）
+        // 运行时异步解析分段（方案 F，2026-08-16；原 ReadFile 保持不变）
+        // ReadFileStep1：IO 段（后台线程）：PLYFileReader.ReadFile（读盘 + Persistent 分配）
+        //                + 属性校验。无 Allocator.Temp、无 Job.Schedule → 线程安全。
+        // ReadFileStep2：解析段（主线程）：PLYDataToSplats（内部 2 个 Temp int 数组，
+        //                Allocator.Temp 主线程限定）+ ReorderSHs + LinearizeDataJob。
+        // 两段合起来与 ReadFile 数据流完全等价（逐字节验证兜底）。
+        // ⚠️ SPZ 分支不支持：SPZFileReader 内部含 UnpackDataJob（主线程限定）
+        // 调用方（LoadingManager）负责在 Step2 之后 Dispose plyRawData（Persistent）。
         // ================================================================
-        public static unsafe void ReadFileStep1(string filePath, out NativeArray<InputSplatData> splats)
+        public static void ReadFileStep1(string filePath,
+            out NativeArray<byte> plyRawData, out int splatCount, out int vertexStride,
+            out List<(string, PLYFileReader.ElementType)> attributes, out string errorMessage)
         {
+            plyRawData = default;
+            splatCount = 0;
+            vertexStride = 0;
+            attributes = null;
+            errorMessage = null;
+
             if (isPLY(filePath))
             {
-                NativeArray<byte> plyRawData;
-                List<(string, PLYFileReader.ElementType)> attributes;
-                PLYFileReader.ReadFile(filePath, out var splatCount, out var vertexStride, out attributes, out plyRawData);
+                PLYFileReader.ReadFile(filePath, out splatCount, out vertexStride, out attributes, out plyRawData);
                 string attrError = CheckPLYAttributes(attributes);
                 if (!string.IsNullOrEmpty(attrError))
-                    throw new IOException($"PLY file is probably not a Gaussian Splat file? Missing properties: {attrError}");
-                splats = PLYDataToSplats(plyRawData, splatCount, vertexStride, attributes);
-                ReorderSHs(splatCount, (float*)splats.GetUnsafePtr());
+                {
+                    plyRawData.Dispose(); // 校验失败：释放已读数据，防止 Persistent 泄漏
+                    plyRawData = default;
+                    errorMessage = $"PLY file is probably not a Gaussian Splat file? Missing properties: {attrError}";
+                }
                 return;
             }
             if (isSPZ(filePath))
-                throw new IOException("SPZ 运行时异步解析暂不支持（内部含 Job），请使用 PLY");
-            throw new IOException($"File {filePath} is not a supported format");
+            {
+                errorMessage = "SPZ 运行时异步解析暂不支持（内部含 Job），请使用 PLY";
+                return;
+            }
+            errorMessage = $"File {filePath} is not a supported format";
         }
 
-        public static void ReadFileStep2(NativeArray<InputSplatData> splats)
+        public static unsafe NativeArray<InputSplatData> ReadFileStep2(
+            NativeArray<byte> plyRawData, int splatCount, int vertexStride,
+            List<(string, PLYFileReader.ElementType)> attributes)
         {
+            NativeArray<InputSplatData> splats = PLYDataToSplats(plyRawData, splatCount, vertexStride, attributes);
+            ReorderSHs(splatCount, (float*)splats.GetUnsafePtr());
             LinearizeData(splats);
+            return splats;
         }
 
         static bool isPLY(string filePath) => filePath.EndsWith(".ply", true, CultureInfo.InvariantCulture);

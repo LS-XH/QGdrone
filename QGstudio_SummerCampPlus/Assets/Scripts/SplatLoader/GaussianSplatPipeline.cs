@@ -155,34 +155,46 @@ namespace QGStudio.SplatLoader
             return data;
         }
 
-        // —— 异步解析分段（方案 B）：Step1 后台线程（IO+纯函数），Step2 主线程（LinearizeDataJob）——
+        // —— 异步解析分段（方案 F）：Step1 IO 段（后台线程），Step2 解析段（主线程）——
         // 与 LoadInputFile 数据流等价：Step1 + Step2 合起来 = GaussianFileReader.ReadFile
-        public NativeArray<InputSplatData> LoadInputFileStep1(string filePath)
+        // ⚠️ Step2 内部含 Allocator.Temp + LinearizeDataJob，必须在主线程调用
+        public (NativeArray<byte> plyRawData, int splatCount, int vertexStride,
+                List<(string, PLYFileReader.ElementType)> attributes)
+            LoadInputFileStep1(string filePath)
         {
-            NativeArray<InputSplatData> data = default;
             if (!File.Exists(filePath))
             {
                 LastErrorMessage = $"Did not find {filePath} file";
                 Debug.LogError($"GS: {LastErrorMessage}");
-                return data;
+                return default;
             }
             try
             {
-                GaussianFileReader.ReadFileStep1(filePath, out data);
+                GaussianFileReader.ReadFileStep1(filePath,
+                    out var plyRawData, out var splatCount, out var vertexStride,
+                    out var attributes, out var errorMessage);
+                if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    LastErrorMessage = errorMessage;
+                    Debug.LogError($"GS: {LastErrorMessage}");
+                }
+                return (plyRawData, splatCount, vertexStride, attributes);
             }
             catch (Exception ex)
             {
                 LastErrorMessage = ex.Message;
                 Debug.LogError($"GS: {LastErrorMessage}");
+                return default;
             }
-            return data;
         }
 
-        public void LoadInputFileStep2(NativeArray<InputSplatData> splats)
+        public NativeArray<InputSplatData> LoadInputFileStep2(
+            NativeArray<byte> plyRawData, int splatCount, int vertexStride,
+            List<(string, PLYFileReader.ElementType)> attributes)
         {
-            if (!splats.IsCreated || splats.Length == 0)
-                return;
-            GaussianFileReader.ReadFileStep2(splats);
+            if (!plyRawData.IsCreated || plyRawData.Length == 0)
+                return default;
+            return GaussianFileReader.ReadFileStep2(plyRawData, splatCount, vertexStride, attributes);
         }
 
         // Creator:272-279 CalcBoundsJob 调度（Job 字段是 float3*，变量必须 float3；取地址需 unsafe，同 Creator 的 unsafe void CreateAsset）

@@ -49,18 +49,36 @@ namespace QGStudio.SplatLoader
                 ProgressChanged?.Invoke(0.2f + (clusterVal - 0.2f) / 0.5f * 0.4f));
 
             // ===== 0-20% 解析 =====
+            // 方案 F：IO 段（读 1.5GB 文件）后台 Task.Run；解析段（Allocator.Temp 主线程限定）主线程。
             ProgressChanged?.Invoke(0.05f);
-            var splats = await Task.Run(() => pipeline.LoadInputFileStep1(plyPath)); // 后台：IO + 纯函数段
-            if (!splats.IsCreated || splats.Length == 0)
+            var io = await Task.Run(() => pipeline.LoadInputFileStep1(plyPath)); // 后台：读盘 + 属性校验（无 Temp 无 Job）
+            if (!io.plyRawData.IsCreated || pipeline.LastErrorMessage != null)
             {
                 string err = pipeline.LastErrorMessage ?? "PLY 解析失败或文件为空";
                 ErrorOccurred?.Invoke(err);
                 return ErrorResult(err);
             }
-            int splatCount = splats.Length; // 在 Dispose 前保存
             ProgressChanged?.Invoke(0.12f);
             await Task.Yield(); // 回主线程，让 UI 刷新
-            pipeline.LoadInputFileStep2(splats); // 主线程：LinearizeDataJob
+            NativeArray<InputSplatData> splats;
+            try
+            {
+                splats = pipeline.LoadInputFileStep2(io.plyRawData, io.splatCount, io.vertexStride, io.attributes); // 主线程：解析 + SH 重排 + Linearize
+            }
+            catch (Exception ex)
+            {
+                io.plyRawData.Dispose(); // 解析失败：释放 IO 段 Persistent 数据
+                ErrorOccurred?.Invoke(ex.Message);
+                return ErrorResult(ex.Message);
+            }
+            io.plyRawData.Dispose(); // Persistent 用完即释（原版 ReadFile 漏释 Persistent，这里补上）
+            if (!splats.IsCreated || splats.Length == 0)
+            {
+                string err = "PLY 解析失败或文件为空";
+                ErrorOccurred?.Invoke(err);
+                return ErrorResult(err);
+            }
+            int splatCount = splats.Length; // 在 Dispose 前保存
             await Task.Yield();
             ProgressChanged?.Invoke(0.2f);
 

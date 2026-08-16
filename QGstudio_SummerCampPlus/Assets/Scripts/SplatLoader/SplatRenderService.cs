@@ -50,6 +50,7 @@ namespace QGStudio.SplatLoader
 
             // scene_id = Hash(路径)，O(1) 定位缓存（设计 §2/§3；阶段 2a 才用）
             string sceneId = Hash128.Compute(plyPath).ToString();
+            float startTime = Time.realtimeSinceStartup; // 完成日志计时
 
             var result = await m_LoadingManager.ConvertAsync(plyPath);
             if (!string.IsNullOrEmpty(result.errorMessage))
@@ -73,6 +74,7 @@ namespace QGStudio.SplatLoader
                 fromCache = false, // 阶段 2a 缓存直读后为 true
             };
             m_LastSucceeded = true;
+            Debug.Log($"SplatLoad done: {m_LastResult.splatCount} splats, sceneId={m_LastResult.sceneId}, fromCache={m_LastResult.fromCache}, 耗时 {Time.realtimeSinceStartup - startTime:F1}s");
             return m_LastResult;
         }
     }

@@ -65,6 +65,38 @@ namespace QGStudio.SplatLoader
             throw new IOException($"File {filePath} is not a supported format");
         }
 
+        // ================================================================
+        // 运行时异步解析分段（方案 B，2026-08-16 新增；原 ReadFile 保持不变）
+        // ReadFileStep1：IO + 纯函数段，无 Job.Schedule，可在后台线程调用
+        //   PLY 读取 → 属性校验 → 数据重排 → SH 重排（与原 ReadFile 前段逐行一致）
+        //   ⚠️ SPZ 分支不支持：SPZFileReader 内部含 UnpackDataJob（主线程限定）
+        // ReadFileStep2：LinearizeDataJob（主线程限定），消费 Step1 产物
+        // 两段合起来与 ReadFile 数据流完全等价（逐字节验证兜底）
+        // ================================================================
+        public static unsafe void ReadFileStep1(string filePath, out NativeArray<InputSplatData> splats)
+        {
+            if (isPLY(filePath))
+            {
+                NativeArray<byte> plyRawData;
+                List<(string, PLYFileReader.ElementType)> attributes;
+                PLYFileReader.ReadFile(filePath, out var splatCount, out var vertexStride, out attributes, out plyRawData);
+                string attrError = CheckPLYAttributes(attributes);
+                if (!string.IsNullOrEmpty(attrError))
+                    throw new IOException($"PLY file is probably not a Gaussian Splat file? Missing properties: {attrError}");
+                splats = PLYDataToSplats(plyRawData, splatCount, vertexStride, attributes);
+                ReorderSHs(splatCount, (float*)splats.GetUnsafePtr());
+                return;
+            }
+            if (isSPZ(filePath))
+                throw new IOException("SPZ 运行时异步解析暂不支持（内部含 Job），请使用 PLY");
+            throw new IOException($"File {filePath} is not a supported format");
+        }
+
+        public static void ReadFileStep2(NativeArray<InputSplatData> splats)
+        {
+            LinearizeData(splats);
+        }
+
         static bool isPLY(string filePath) => filePath.EndsWith(".ply", true, CultureInfo.InvariantCulture);
         static bool isSPZ(string filePath) => filePath.EndsWith(".spz", true, CultureInfo.InvariantCulture);
 

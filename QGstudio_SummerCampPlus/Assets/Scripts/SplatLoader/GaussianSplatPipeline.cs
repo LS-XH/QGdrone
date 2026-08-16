@@ -43,6 +43,10 @@ namespace QGStudio.SplatLoader
         public struct ConvertResult
         {
             public int splatCount;
+            public GaussianSplatAsset.VectorFormat formatPos;
+            public GaussianSplatAsset.VectorFormat formatScale;
+            public GaussianSplatAsset.ColorFormat formatColor;
+            public GaussianSplatAsset.SHFormat formatSH;
             public Vector3 boundsMin;
             public Vector3 boundsMax;
             public Hash128 dataHash;
@@ -63,6 +67,12 @@ namespace QGStudio.SplatLoader
 
         // 相机 json 是否导入（Creator:40 m_ImportCameras）
         public bool importCameras = true;
+
+        // 当前质量档对应的 4 个格式（ApplyQualityLevel 设置；步骤式编排时 LoadingManager 需要读取）
+        public GaussianSplatAsset.VectorFormat FormatPos => m_FormatPos;
+        public GaussianSplatAsset.VectorFormat FormatScale => m_FormatScale;
+        public GaussianSplatAsset.ColorFormat FormatColor => m_FormatColor;
+        public GaussianSplatAsset.SHFormat FormatSH => m_FormatSH;
 
         // 进度回调（Creator 的 EditorUtility.DisplayProgressBar 换成它；数值语义照搬 Creator）
         Action<float> m_Progress;
@@ -143,6 +153,36 @@ namespace QGStudio.SplatLoader
                 Debug.LogError($"GS: {LastErrorMessage}");
             }
             return data;
+        }
+
+        // —— 异步解析分段（方案 B）：Step1 后台线程（IO+纯函数），Step2 主线程（LinearizeDataJob）——
+        // 与 LoadInputFile 数据流等价：Step1 + Step2 合起来 = GaussianFileReader.ReadFile
+        public NativeArray<InputSplatData> LoadInputFileStep1(string filePath)
+        {
+            NativeArray<InputSplatData> data = default;
+            if (!File.Exists(filePath))
+            {
+                LastErrorMessage = $"Did not find {filePath} file";
+                Debug.LogError($"GS: {LastErrorMessage}");
+                return data;
+            }
+            try
+            {
+                GaussianFileReader.ReadFileStep1(filePath, out data);
+            }
+            catch (Exception ex)
+            {
+                LastErrorMessage = ex.Message;
+                Debug.LogError($"GS: {LastErrorMessage}");
+            }
+            return data;
+        }
+
+        public void LoadInputFileStep2(NativeArray<InputSplatData> splats)
+        {
+            if (!splats.IsCreated || splats.Length == 0)
+                return;
+            GaussianFileReader.ReadFileStep2(splats);
         }
 
         // Creator:272-279 CalcBoundsJob 调度（Job 字段是 float3*，变量必须 float3；取地址需 unsafe，同 Creator 的 unsafe void CreateAsset）
@@ -381,6 +421,10 @@ namespace QGStudio.SplatLoader
             try
             {
                 ApplyQualityLevel(quality);
+                result.formatPos = m_FormatPos;
+                result.formatScale = m_FormatScale;
+                result.formatColor = m_FormatColor;
+                result.formatSH = m_FormatSH;
                 result.cameras = LoadCameras(inputFile); // Creator:264
 
                 NativeArray<InputSplatData> inputSplats = LoadInputFile(inputFile); // Creator:265

@@ -362,38 +362,80 @@ namespace GaussianSplatting.Runtime
             m_Asset != null &&
             m_Asset.splatCount > 0 &&
             m_Asset.formatVersion == GaussianSplatAsset.kCurrentVersion &&
-            m_Asset.posData != null &&
-            m_Asset.otherData != null &&
-            m_Asset.shData != null &&
-            m_Asset.colorData != null;
+            m_Asset.hasDataReferences;
         public bool HasValidRenderSetup => m_GpuPosData != null && m_GpuOtherData != null && m_GpuChunks != null;
 
         const int kGpuViewDataSize = 40;
+
+        // Convert raw bytes into a NativeArray<T> (equivalent to TextAsset.GetData<T>(), for the runtime byte[] channel).
+        static unsafe NativeArray<T> BytesToNativeArray<T>(byte[] bytes, Allocator allocator) where T : struct
+        {
+            if (bytes == null)
+                return default;
+            var result = new NativeArray<T>(bytes.Length / UnsafeUtility.SizeOf<T>(), allocator, NativeArrayOptions.UninitializedMemory);
+            fixed (byte* src = bytes)
+            {
+                UnsafeUtility.MemCpy(result.GetUnsafePtr(), src, bytes.Length);
+            }
+            return result;
+        }
+
+        // Set when a valid asset was seen but its TextAsset data wasn't loaded yet
+        // (TextAsset.bytes is lazily loaded; right after scene load it can be empty).
+        bool m_PendingDataLoad;
 
         void CreateResourcesForAsset()
         {
             if (!HasValidAsset)
                 return;
 
+            // Guard: pos/other/sh buffers require at least one 4-byte element. If the asset is
+            // structurally valid but its TextAsset data isn't loaded yet (lazy loading right after
+            // scene load, TextAsset.bytes can be null or empty), defer instead of failing:
+            // Update() will retry once data arrives.
+            byte[] posBytes = asset.posDataBytes;
+            byte[] otherBytes = asset.otherDataBytes;
+            byte[] shBytes = asset.shDataBytes;
+            byte[] colorBytes = asset.colorDataBytes;
+            if (posBytes == null || posBytes.Length < 4 ||
+                otherBytes == null || otherBytes.Length < 4 ||
+                shBytes == null || shBytes.Length < 4 ||
+                colorBytes == null || colorBytes.Length < 4)
+            {
+                // Never fail silently: a black screen with no log is the hardest symptom to diagnose.
+                if (!m_PendingDataLoad)
+                    Debug.LogWarning($"{nameof(GaussianSplatRenderer)}: asset data not ready yet " +
+                                     "(TextAsset lazy loading), retrying every frame");
+                m_PendingDataLoad = true;
+                return;
+            }
+            if (m_PendingDataLoad)
+                Debug.Log($"{nameof(GaussianSplatRenderer)}: asset data ready, creating GPU resources");
+            m_PendingDataLoad = false;
+
             m_SplatCount = asset.splatCount;
-            m_GpuPosData = new GraphicsBuffer(GraphicsBuffer.Target.Raw | GraphicsBuffer.Target.CopySource, (int) (asset.posData.dataSize / 4), 4) { name = "GaussianPosData" };
-            m_GpuPosData.SetData(asset.posData.GetData<uint>());
-            m_GpuOtherData = new GraphicsBuffer(GraphicsBuffer.Target.Raw | GraphicsBuffer.Target.CopySource, (int) (asset.otherData.dataSize / 4), 4) { name = "GaussianOtherData" };
-            m_GpuOtherData.SetData(asset.otherData.GetData<uint>());
-            m_GpuSHData = new GraphicsBuffer(GraphicsBuffer.Target.Raw, (int) (asset.shData.dataSize / 4), 4) { name = "GaussianSHData" };
-            m_GpuSHData.SetData(asset.shData.GetData<uint>());
+            m_GpuPosData = new GraphicsBuffer(GraphicsBuffer.Target.Raw | GraphicsBuffer.Target.CopySource, (int) (asset.posDataBytes.Length / 4), 4) { name = "GaussianPosData" };
+            using (var posData = BytesToNativeArray<uint>(asset.posDataBytes, Allocator.Temp))
+                m_GpuPosData.SetData(posData);
+            m_GpuOtherData = new GraphicsBuffer(GraphicsBuffer.Target.Raw | GraphicsBuffer.Target.CopySource, (int) (asset.otherDataBytes.Length / 4), 4) { name = "GaussianOtherData" };
+            using (var otherData = BytesToNativeArray<uint>(asset.otherDataBytes, Allocator.Temp))
+                m_GpuOtherData.SetData(otherData);
+            m_GpuSHData = new GraphicsBuffer(GraphicsBuffer.Target.Raw, (int) (asset.shDataBytes.Length / 4), 4) { name = "GaussianSHData" };
+            using (var shData = BytesToNativeArray<uint>(asset.shDataBytes, Allocator.Temp))
+                m_GpuSHData.SetData(shData);
             var (texWidth, texHeight) = GaussianSplatAsset.CalcTextureSize(asset.splatCount);
             var texFormat = GaussianSplatAsset.ColorFormatToGraphics(asset.colorFormat);
             var tex = new Texture2D(texWidth, texHeight, texFormat, TextureCreationFlags.DontInitializePixels | TextureCreationFlags.IgnoreMipmapLimit | TextureCreationFlags.DontUploadUponCreate) { name = "GaussianColorData" };
-            tex.SetPixelData(asset.colorData.GetData<byte>(), 0);
+            tex.SetPixelData(asset.colorDataBytes, 0);
             tex.Apply(false, true);
             m_GpuColorData = tex;
-            if (asset.chunkData != null && asset.chunkData.dataSize != 0)
+            if (asset.chunkDataBytes != null && asset.chunkDataBytes.Length != 0)
             {
                 m_GpuChunks = new GraphicsBuffer(GraphicsBuffer.Target.Structured,
-                    (int) (asset.chunkData.dataSize / UnsafeUtility.SizeOf<GaussianSplatAsset.ChunkInfo>()),
+                    (int) (asset.chunkDataBytes.Length / UnsafeUtility.SizeOf<GaussianSplatAsset.ChunkInfo>()),
                     UnsafeUtility.SizeOf<GaussianSplatAsset.ChunkInfo>()) {name = "GaussianChunkData"};
-                m_GpuChunks.SetData(asset.chunkData.GetData<GaussianSplatAsset.ChunkInfo>());
+                using (var chunkData = BytesToNativeArray<GaussianSplatAsset.ChunkInfo>(asset.chunkDataBytes, Allocator.Temp))
+                    m_GpuChunks.SetData(chunkData);
                 m_GpuChunksValid = true;
             }
             else
@@ -654,6 +696,14 @@ namespace GaussianSplatting.Runtime
                 {
                     Debug.LogError($"{nameof(GaussianSplatRenderer)} component is not set up correctly (Resource references are missing), or platform does not support compute shaders");
                 }
+            }
+            // TextAsset data is loaded lazily: if we deferred resource creation because the asset's
+            // data wasn't available yet, retry every frame until it arrives (then render normally).
+            // Deliberately a standalone `if`, NOT else-if: recovery must not depend on the asset/hash
+            // change branch above behaving correctly — one-shot recovery paths are fragile.
+            if (m_PendingDataLoad && resourcesAreSetUp)
+            {
+                CreateResourcesForAsset();
             }
         }
 

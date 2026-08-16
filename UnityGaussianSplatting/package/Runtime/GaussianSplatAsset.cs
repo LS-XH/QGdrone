@@ -214,6 +214,13 @@ namespace GaussianSplatting.Runtime
         // Chunk data is optional (if data formats are fully lossless then there's no chunking)
         [SerializeField] TextAsset m_ChunkData;
 
+        // Runtime data channel: bytes injected at runtime, does not replace TextAsset path
+        [SerializeField] byte[] m_RuntimePosData;
+        [SerializeField] byte[] m_RuntimeOtherData;
+        [SerializeField] byte[] m_RuntimeColorData;
+        [SerializeField] byte[] m_RuntimeSHData;
+        [SerializeField] byte[] m_RuntimeChunkData;
+
         [SerializeField] CameraInfo[] m_Cameras;
 
         public VectorFormat posFormat => m_PosFormat;
@@ -226,6 +233,70 @@ namespace GaussianSplatting.Runtime
         public TextAsset otherData => m_OtherData;
         public TextAsset shData => m_SHData;
         public TextAsset chunkData => m_ChunkData;
+
+        // Inject data at runtime (byte[] channel). Chunk is optional (null = lossless / no chunking).
+        public void SetRuntimeData(byte[] pos, byte[] other, byte[] color, byte[] sh, byte[] chunk = null)
+        {
+            m_RuntimePosData = pos;
+            m_RuntimeOtherData = other;
+            m_RuntimeColorData = color;
+            m_RuntimeSHData = sh;
+            m_RuntimeChunkData = chunk;
+        }
+
+        // Structural validity: data sources exist (TextAsset refs OR runtime byte[] channel).
+        // Deliberately does NOT touch TextAsset.bytes — it is lazily loaded and returns null/empty
+        // right after scene load, so touching it here would falsely report a valid asset as invalid.
+        public bool hasDataReferences =>
+            (m_PosData != null || m_RuntimePosData != null) &&
+            (m_OtherData != null || m_RuntimeOtherData != null) &&
+            (m_ColorData != null || m_RuntimeColorData != null) &&
+            (m_SHData != null || m_RuntimeSHData != null);
+
+        // Unified access: runtime byte[] takes priority, TextAsset is the fallback (renderer only reads these).
+        // NOTE: cannot use `m_RuntimePosData ?? m_PosData?.bytes` — Unity objects (TextAsset) do not
+        // short-circuit `?.`/`??` on unassigned references; must test with explicit != null.
+        public byte[] posDataBytes
+        {
+            get
+            {
+                if (m_RuntimePosData != null) return m_RuntimePosData;
+                return m_PosData != null ? m_PosData.bytes : null;
+            }
+        }
+        public byte[] otherDataBytes
+        {
+            get
+            {
+                if (m_RuntimeOtherData != null) return m_RuntimeOtherData;
+                return m_OtherData != null ? m_OtherData.bytes : null;
+            }
+        }
+        public byte[] colorDataBytes
+        {
+            get
+            {
+                if (m_RuntimeColorData != null) return m_RuntimeColorData;
+                return m_ColorData != null ? m_ColorData.bytes : null;
+            }
+        }
+        public byte[] shDataBytes
+        {
+            get
+            {
+                if (m_RuntimeSHData != null) return m_RuntimeSHData;
+                return m_SHData != null ? m_SHData.bytes : null;
+            }
+        }
+        public byte[] chunkDataBytes
+        {
+            get
+            {
+                if (m_RuntimeChunkData != null) return m_RuntimeChunkData;
+                return m_ChunkData != null ? m_ChunkData.bytes : null;
+            }
+        }
+
         public CameraInfo[] cameras => m_Cameras;
 
         public struct ChunkInfo

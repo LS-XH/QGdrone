@@ -45,3 +45,6 @@ Desktop.ini
 *.pem
 *.token
 .env
+
+# dsh
+.npm-tmp-cache/*

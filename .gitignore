@@ -27,3 +27,7 @@ QGstudio_SummerCampPlus/Assets/GaussianAssets/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ============ 本地联调工具（不提交：中转服务器 + AI 组客户端）============
+server/
+ai_client/

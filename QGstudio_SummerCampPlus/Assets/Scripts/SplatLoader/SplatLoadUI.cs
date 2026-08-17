@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 // ============================================================================
-// SplatLoadUI.cs —— 阶段 1 UI（简报 §四.7 / 进度 v2 §四④）
+// SplatLoadUI.cs —— 运行时 UI（阶段 1 基础 + 2026-08-17 UI 呈现改造）
 // 使用方式：场景里放一个空 GameObject 挂本组件（零 Inspector 配置）。
-// Awake 自动构建：Canvas(复用或自建) + 按钮"选择 PLY 文件" + 进度条 Slider
-//                + 百分比文本 + 状态文本（左上角垂直排布，CanvasScaler 1920x1080）。
+// Awake 自动构建：
+//   左上角垂直排布：按钮"选择 PLY 文件" + 进度条 Slider + 百分比 + 当前状态行（一行）
+//   左下角：消息框（控制台式：ScrollRect + 新消息追加底部 + 自动滚底 + 上限 30 条）
+// 进度条改造（2026-08-17）：
+//   ① 根因修复：Fill 图像改 Simple 类型——UGUI Slider 的填充机制是改 fillRect.anchorMax.x，
+//      原 Filled 类型 + fillAmount=0 导致填充永不渲染（数字能动、条不动）
+//   ② 平滑动画：Update 里 MoveTowards 显示值→目标值，进度肉眼可见连续前进
+//   ③ 失败变红：OnError 时填充色改红
+// 消息栏触发点：开始加载（Info）/ 完成（Success）/ 失败（Error）/ 警告（Warning 预留）
 // 事件流：按钮 → FilePicker.OpenFile() → await service.LoadAsync(path)。
-// 信息分层：加载中 = 阶段描述+百分比+文件名；完成 = splatCount/sceneId/fromCache/耗时；
-//           失败 = OnError 红色文本（catch 兜底打完整堆栈）。
 // 字体：LegacyRuntime.ttf（Unity 6000 内置），Arial 兜底（旧版编辑器）。
 // ============================================================================
 using System;
@@ -33,21 +38,38 @@ namespace QGStudio.SplatLoader
         const float k_SliderHeight = 24f;
         const float k_PercentWidth = 64f;
         const float k_StatusWidth = 640f;
-        const float k_StatusHeight = 140f;
+        const float k_StatusHeight = 30f;      // 改造：原 140 多行状态文本 → 一行当前状态
         const int k_FontSizeButton = 22;
         const int k_FontSizeText = 24;
+        const int k_FontSizeStatus = 18;       // 当前状态行（小字）
+        const int k_FontSizeMessage = 17;      // 消息栏条目
+
+        // ---- 消息栏常量 ----
+        const float k_MessageWidth = 520f;
+        const float k_MessageHeight = 220f;
+        const int k_MaxMessages = 30;          // 控制台式：保留最近 30 条，超出删最旧
+
+        // ---- 进度平滑 ----
+        const float k_ProgressSpeed = 0.5f;    // 显示值追赶目标值的速度（单位/秒）
 
         readonly SplatRenderService m_Service = new();
         IPlatformFilePicker m_Picker;
 
         Button m_Button;
         Slider m_Progress;
+        Image m_FillImage;                     // 进度条填充图（失败变红用）
         Text m_PercentText;
-        Text m_StatusText;
+        Text m_CurrentStatusText;              // 改造：一行当前状态（原 640×140 多行状态文本）
+        ScrollRect m_MessageScroll;
+        RectTransform m_MessageContent;
 
+        float m_DisplayProgress;               // 平滑显示值
+        float m_TargetProgress;                // 目标值（OnProgress 设置）
         bool m_Busy;
         Stopwatch m_Watch;
         string m_LoadingFileName;
+
+        enum MessageType { Info, Success, Error, Warning }
 
         void Awake()
         {
@@ -61,6 +83,17 @@ namespace QGStudio.SplatLoader
         {
             m_Service.OnProgress -= OnProgress;
             m_Service.OnError -= OnError;
+        }
+
+        void Update()
+        {
+            // 进度平滑：显示值向目标值靠拢（转换 12s 内肉眼可见连续前进，不再台阶跳变）
+            if (Mathf.Abs(m_DisplayProgress - m_TargetProgress) > 0.001f)
+            {
+                m_DisplayProgress = Mathf.MoveTowards(m_DisplayProgress, m_TargetProgress, k_ProgressSpeed * Time.unscaledDeltaTime);
+                m_Progress.SetValueWithoutNotify(m_DisplayProgress);
+                m_PercentText.text = Mathf.RoundToInt(m_DisplayProgress * 100f) + "%";
+            }
         }
 
         static IPlatformFilePicker CreatePicker()
@@ -118,12 +151,16 @@ namespace QGStudio.SplatLoader
                 k_PercentWidth, k_SliderHeight, k_FontSizeText, TextAnchor.MiddleLeft);
             SetTopLeft(m_PercentText.rectTransform, k_Margin + k_SliderWidth + k_Spacing, sliderY);
 
-            // 状态文本（多行）
-            m_StatusText = CreateText(canvas.transform, "SplatLoadStatus",
+            // 当前状态行（改造：一行，原 640×140 多行状态文本的信息职责移交左下角消息栏）
+            m_CurrentStatusText = CreateText(canvas.transform, "SplatLoadStatus",
                 "就绪：点击上方按钮选择 PLY 文件",
-                k_StatusWidth, k_StatusHeight, k_FontSizeText, TextAnchor.UpperLeft);
-            SetTopLeft(m_StatusText.rectTransform, k_Margin,
+                k_StatusWidth, k_StatusHeight, k_FontSizeStatus, TextAnchor.UpperLeft);
+            SetTopLeft(m_CurrentStatusText.rectTransform, k_Margin,
                 -(k_Margin + k_ButtonHeight + k_Spacing + k_SliderHeight + k_Spacing));
+
+            // 消息栏（左下角，控制台式滚动）
+            CreateMessageBox(canvas.transform);
+            AddMessage("就绪：点击上方按钮选择 PLY 文件", MessageType.Info);
 
             m_Button.onClick.AddListener(OnPickFileClicked);
         }
@@ -134,6 +171,15 @@ namespace QGStudio.SplatLoader
             rt.anchorMin = new Vector2(0f, 1f);
             rt.anchorMax = new Vector2(0f, 1f);
             rt.pivot = new Vector2(0f, 1f);
+            rt.anchoredPosition = new Vector2(x, y);
+        }
+
+        /// <summary>左下角锚定（anchor/pivot 均为左下）。</summary>
+        static void SetBottomLeft(RectTransform rt, float x, float y)
+        {
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(0f, 0f);
+            rt.pivot = new Vector2(0f, 0f);
             rt.anchoredPosition = new Vector2(x, y);
         }
 
@@ -196,7 +242,8 @@ namespace QGStudio.SplatLoader
             var slider = go.AddComponent<Slider>();
             slider.interactable = false; // 纯展示，不可拖
 
-            // Fill Area → Fill（Filled 横向，Slider 接管 fillAmount）
+            // Fill Area → Fill（Simple 类型！UGUI Slider 的填充机制 = 改 fillRect.anchorMax.x，
+            // 不是 Image.fillAmount——Filled 类型 + fillAmount=0 会永远不渲染填充（2026-08-17 修复））
             var fillAreaGo = new GameObject("Fill Area", typeof(RectTransform));
             fillAreaGo.transform.SetParent(go.transform, false);
             var fillAreaRt = (RectTransform)fillAreaGo.transform;
@@ -212,13 +259,9 @@ namespace QGStudio.SplatLoader
             fillRt.anchorMax = Vector2.one;
             fillRt.offsetMin = Vector2.zero;
             fillRt.offsetMax = Vector2.zero;
-            var fillImage = fillGo.AddComponent<Image>();
-            fillImage.type = Image.Type.Filled;
-            fillImage.fillMethod = Image.FillMethod.Horizontal;
-            fillImage.fillOrigin = 0; // Left
-            fillImage.fillAmount = 0f;
-            fillImage.color = new Color(0.2f, 0.8f, 0.35f, 1f);
-            fillImage.raycastTarget = false;
+            m_FillImage = fillGo.AddComponent<Image>(); // 默认 Simple 类型（Slider 用 anchorMax 拉伸）
+            m_FillImage.color = new Color(0.2f, 0.8f, 0.35f, 1f);
+            m_FillImage.raycastTarget = false;
 
             slider.fillRect = fillRt;
             slider.SetValueWithoutNotify(0f);
@@ -245,15 +288,109 @@ namespace QGStudio.SplatLoader
             return text;
         }
 
+        // ================= 消息栏（控制台式）=================
+
+        /// <summary>
+        /// 左下角消息框：半透明黑底 + Viewport(RectMask2D 裁剪) + Content(VerticalLayoutGroup
+        /// 自动排布) + ScrollRect。新消息追加底部；用户停留在底部时自动滚底（旧消息上滚），
+        /// 用户上翻查看历史时不打扰。
+        /// </summary>
+        void CreateMessageBox(Transform parent)
+        {
+            var go = new GameObject("SplatMessageBox", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.sizeDelta = new Vector2(k_MessageWidth, k_MessageHeight);
+            SetBottomLeft(rt, k_Margin, k_Margin);
+            var bg = go.AddComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.65f);
+
+            // Viewport（裁剪内容）
+            var viewportGo = new GameObject("Viewport", typeof(RectTransform));
+            viewportGo.transform.SetParent(go.transform, false);
+            var viewportRt = (RectTransform)viewportGo.transform;
+            viewportRt.anchorMin = Vector2.zero;
+            viewportRt.anchorMax = Vector2.one;
+            viewportRt.offsetMin = new Vector2(8f, 8f);
+            viewportRt.offsetMax = new Vector2(-8f, -8f);
+            viewportGo.AddComponent<RectMask2D>();
+
+            // Content（垂直自动排布 + 高度自适应）
+            var contentGo = new GameObject("Content", typeof(RectTransform));
+            contentGo.transform.SetParent(viewportGo.transform, false);
+            var contentRt = (RectTransform)contentGo.transform;
+            contentRt.anchorMin = new Vector2(0f, 1f); // 顶部锚定，宽度拉伸
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.sizeDelta = new Vector2(0f, 0f);
+            var vlg = contentGo.AddComponent<VerticalLayoutGroup>();
+            vlg.childAlignment = TextAnchor.UpperLeft;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+            vlg.spacing = 2f;
+            vlg.padding = new RectOffset(2, 2, 2, 2);
+            var csf = contentGo.AddComponent<ContentSizeFitter>();
+            csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize; // 高度随消息增长
+
+            var scroll = go.AddComponent<ScrollRect>();
+            scroll.content = contentRt;
+            scroll.viewport = viewportRt;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 20f;
+            m_MessageScroll = scroll;
+            m_MessageContent = contentRt;
+        }
+
+        /// <summary>追加一条消息（控制台行为：追加到底部，在底部时自动滚底）。</summary>
+        void AddMessage(string text, MessageType type)
+        {
+            var entryGo = new GameObject($"Msg{m_MessageContent.childCount}", typeof(RectTransform));
+            entryGo.transform.SetParent(m_MessageContent, false);
+            var entryRt = (RectTransform)entryGo.transform;
+            entryRt.sizeDelta = new Vector2(0f, 0f); // VerticalLayoutGroup 接管尺寸
+
+            var t = entryGo.AddComponent<Text>();
+            t.font = GetBuiltinFont();
+            t.fontSize = k_FontSizeMessage;
+            t.alignment = TextAnchor.UpperLeft;
+            t.color = GetMessageColor(type);
+            t.text = text;
+            t.raycastTarget = false; // 不拦截滚动
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Overflow;
+
+            // 上限：删最旧
+            while (m_MessageContent.childCount > k_MaxMessages)
+                Destroy(m_MessageContent.GetChild(0).gameObject);
+
+            // 立即重建布局；用户停在底部附近（verticalNormalizedPosition≈0=底部）才自动滚底
+            LayoutRebuilder.ForceRebuildLayoutImmediate(m_MessageContent);
+            if (m_MessageScroll.verticalNormalizedPosition < 0.01f)
+                m_MessageScroll.verticalNormalizedPosition = 0f;
+        }
+
+        static Color GetMessageColor(MessageType type)
+        {
+            switch (type)
+            {
+                case MessageType.Info: return new Color(0.85f, 0.85f, 0.85f);
+                case MessageType.Success: return new Color(0.35f, 0.85f, 0.4f);
+                case MessageType.Error: return new Color(1f, 0.35f, 0.35f);
+                case MessageType.Warning: return new Color(1f, 0.7f, 0.2f);
+                default: return Color.white;
+            }
+        }
+
         // ================= 事件 =================
 
-        /// <summary>加载进度（0~1，主线程回调）→ 进度条 + 阶段描述。</summary>
+        /// <summary>加载进度（0~1，主线程回调）→ 目标值 + 当前状态行。</summary>
         void OnProgress(float p)
         {
-            m_Progress.SetValueWithoutNotify(p);
+            m_TargetProgress = p;
             int percent = Mathf.RoundToInt(p * 100f);
-            m_PercentText.text = percent + "%";
-            m_StatusText.text = $"{PhaseName(p)} ({percent}%)\n正在加载：{Path.GetFileName(m_LoadingFileName)}";
+            m_CurrentStatusText.text = $"{PhaseName(p)} ({percent}%) · {Path.GetFileName(m_LoadingFileName)}";
         }
 
         static string PhaseName(float p)
@@ -267,8 +404,9 @@ namespace QGStudio.SplatLoader
         /// <summary>加载错误（Service 契约：OnError + LoadAsync 抛异常，双通道）。</summary>
         void OnError(string message)
         {
-            m_StatusText.color = Color.red;
-            m_StatusText.text = "加载失败：\n" + message;
+            m_FillImage.color = new Color(1f, 0.35f, 0.35f, 1f); // 进度条变红
+            m_CurrentStatusText.text = "加载失败：" + message;
+            AddMessage("失败：" + message, MessageType.Error);
         }
 
         async void OnPickFileClicked()
@@ -276,8 +414,7 @@ namespace QGStudio.SplatLoader
             if (m_Busy) return;
             if (m_Picker == null)
             {
-                m_StatusText.color = Color.red;
-                m_StatusText.text = "当前平台未实现文件选择（阶段 1 仅支持 Editor）";
+                AddMessage("当前平台未实现文件选择（阶段 1 仅支持 Editor）", MessageType.Error);
                 return;
             }
 
@@ -287,24 +424,27 @@ namespace QGStudio.SplatLoader
             m_Busy = true;
             m_Button.interactable = false; // 防重入
             m_LoadingFileName = path;
-            m_StatusText.color = Color.white;
-            m_StatusText.text = $"正在加载：{Path.GetFileName(path)}";
+            m_CurrentStatusText.text = $"正在加载：{Path.GetFileName(path)}";
+            m_TargetProgress = 0f;
+            m_DisplayProgress = 0f;
+            m_FillImage.color = new Color(0.2f, 0.8f, 0.35f, 1f); // 复位绿色
             m_Watch = Stopwatch.StartNew();
+            AddMessage($"开始加载：{Path.GetFileName(path)}", MessageType.Info);
 
             try
             {
                 SplatIngestResult result = await m_Service.LoadAsync(path);
-                m_StatusText.color = Color.white;
-                m_StatusText.text =
-                    $"完成：{result.splatCount} splats\n" +
-                    $"sceneId={result.sceneId}\n" +
-                    $"fromCache={result.fromCache}  耗时 {m_Watch.Elapsed.TotalSeconds:F1}s";
+                m_CurrentStatusText.text =
+                    $"完成：{result.splatCount} splats（fromCache={result.fromCache}，耗时 {m_Watch.Elapsed.TotalSeconds:F1}s）";
+                AddMessage(
+                    $"完成：{result.splatCount} splats · fromCache={result.fromCache} · 耗时 {m_Watch.Elapsed.TotalSeconds:F1}s",
+                    MessageType.Success);
             }
             catch (Exception e)
             {
                 // OnError 已负责 UI 红色提示；此处兜底防 async void unhandled + 打印完整堆栈
-                m_StatusText.color = Color.red;
-                m_StatusText.text = "加载失败：\n" + e.Message;
+                m_CurrentStatusText.text = "加载失败：" + e.Message;
+                AddMessage("失败：" + e.Message, MessageType.Error);
                 UnityEngine.Debug.LogException(e);
             }
             finally

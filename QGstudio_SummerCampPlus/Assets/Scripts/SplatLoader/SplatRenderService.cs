@@ -31,6 +31,9 @@ namespace QGStudio.SplatLoader
         SplatIngestResult m_LastResult;
         bool m_LastSucceeded;
 
+        /// <summary>最近一次成功加载的模型包围盒（减质心后局部系 = 世界系范围）；未加载过为 null。相机边界钳制用。</summary>
+        public static (Vector3 min, Vector3 max)? LastLoadedBounds { get; private set; }
+
         /// <summary>加载进度（0~1，主线程回调；UI 订阅）</summary>
         public event Action<float> OnProgress;
         /// <summary>加载错误（UI 订阅；同时 LoadAsync 抛异常）</summary>
@@ -64,6 +67,7 @@ namespace QGStudio.SplatLoader
                 if (cache.Status == SplatAssetCache.LoadStatus.Hit)
                 {
                     OnProgress?.Invoke(0.5f);
+                    LastLoadedBounds = (cache.Result.boundsMin, cache.Result.boundsMax); // 相机边界钳制用
                     // 决策点①：相机不进缓存，现场重读 cameras.json（与转换路径同源）
                     cache.Result.cameras = new GaussianSplatPipeline().LoadCameras(plyPath);
                     OnProgress?.Invoke(0.7f);
@@ -93,6 +97,7 @@ namespace QGStudio.SplatLoader
                 m_LastSucceeded = false;
                 throw new InvalidOperationException($"SplatLoad failed: {result.errorMessage}");
             }
+            LastLoadedBounds = (result.boundsMin, result.boundsMax); // 相机边界钳制用（加载成功即更新，含 forceReload）
 
             // 90-100%：落盘（270MB 纯 IO，后台写，不卡 UI）+ 挂载
             OnProgress?.Invoke(0.92f);

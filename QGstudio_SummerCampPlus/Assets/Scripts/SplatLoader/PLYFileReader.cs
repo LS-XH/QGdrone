@@ -69,10 +69,26 @@ namespace QGStudio.SplatLoader
             using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
             ReadHeaderImpl(filePath, out vertexCount, out vertexStride, out attrs, fs);
 
-            vertices = new NativeArray<byte>(vertexCount * vertexStride, Allocator.Persistent);
-            var readBytes = fs.Read(vertices);
-            if (readBytes != vertices.Length)
-                throw new IOException($"PLY {filePath} read error, expected {vertices.Length} data bytes got {readBytes}");
+            // 完整性预检（2026-08-17 加固）：header 声明的数据量 vs 文件剩余字节。
+            // 半截文件（网络传输中断）在读盘前就报错，错误信息明确，不浪费整盘 IO。
+            long expectedData = (long)vertexCount * vertexStride;
+            long remaining = fs.Length - fs.Position;
+            if (remaining < expectedData)
+                throw new IOException($"PLY 文件不完整: header 声明 {vertexCount} 点 × {vertexStride}B = {expectedData} 数据字节，文件实际剩余 {remaining} 字节（可能传输中断或文件损坏）: {filePath}");
+
+            vertices = new NativeArray<byte>((int)expectedData, Allocator.Persistent); // 预检保证 < 2GB（ReadHeaderImpl 限制），int 安全
+            // 补满循环：FileStream.Read 不保证一次读满（红榜：Read 补满循环是 PLY 必踩坑）
+            var span = vertices.AsSpan();
+            int total = 0;
+            while (total < span.Length)
+            {
+                int n = fs.Read(span[total..]);
+                if (n <= 0)
+                    break; // EOF
+                total += n;
+            }
+            if (total != span.Length)
+                throw new IOException($"PLY {filePath} read error, expected {span.Length} data bytes got {total}");
         }
 
         public enum ElementType

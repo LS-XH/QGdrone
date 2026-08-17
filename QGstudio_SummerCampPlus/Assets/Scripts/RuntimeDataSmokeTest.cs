@@ -20,6 +20,11 @@ public class RuntimeDataSmokeTest : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoAttach()
     {
+        // 阶段 0 验证脚本默认关闭（2026-08-17 起：它每次 Play 白占 ~270MB，且 T 键会
+        // 把渲染器切回 Creator 资产、覆盖 Service 挂载的缓存资产）。
+        // 需要重新验证 byte[] 通道时：kEnabled 改为 true 重新编译即可，脚本与验证逻辑保留。
+        const bool kEnabled = false;
+        if (!kEnabled) return;
         var go = new GameObject("RuntimeDataSmokeTest");
         DontDestroyOnLoad(go);
         go.AddComponent<RuntimeDataSmokeTest>();

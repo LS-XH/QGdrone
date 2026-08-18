@@ -32,17 +32,17 @@ namespace QGStudio.SplatLoader
         // ---- 布局常量（左上角垂直排布，margin 20，间距 10）----
         const float k_Margin = 20f;
         const float k_Spacing = 10f;
-        const float k_ButtonWidth = 180f;
-        const float k_ButtonHeight = 44f;
-        const float k_SliderWidth = 360f;
+        const float k_ButtonWidth = 200f;
+        const float k_ButtonHeight = 80f;
+        const float k_SliderWidth = 300f;
         const float k_SliderHeight = 24f;
         const float k_PercentWidth = 64f;
         const float k_StatusWidth = 640f;
         const float k_StatusHeight = 30f;      // 改造：原 140 多行状态文本 → 一行当前状态
         const int k_FontSizeButton = 22;
         const int k_FontSizeText = 24;
-        const int k_FontSizeStatus = 18;       // 当前状态行（小字）
-        const int k_FontSizeMessage = 17;      // 消息栏条目
+        const int k_FontSizeStatus = 20;       // 当前状态行（小字）
+        const int k_FontSizeMessage = 20;      // 消息栏条目
 
         // ---- 消息栏常量 ----
         const float k_MessageWidth = 520f;
@@ -100,8 +100,10 @@ namespace QGStudio.SplatLoader
         {
 #if UNITY_EDITOR
             return new EditorFilePicker();
+#elif UNITY_STANDALONE_WIN
+            return new WindowsFilePicker(); // 2026-08-18：打包版可用（P/Invoke 系统对话框 + 记忆上次目录）
 #else
-            return null; // 阶段 1：非 Editor 平台未实现（接口预留）
+            return null; // 其他平台未实现（接口预留）
 #endif
         }
 

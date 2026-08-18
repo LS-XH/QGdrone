@@ -51,6 +51,12 @@ namespace QGStudio.SplatLoader
         [SerializeField] int m_MaxMessages = 30;          // 控制台式：保留最近 30 条，超出删最旧
         [Header("进度平滑")]
         [SerializeField] float m_ProgressSpeed = 0.5f;    // 显示值追赶目标值的速度（单位/秒）
+        [Header("退出按钮")]
+        [SerializeField] string m_ExitButtonLabel = "退出程序";
+        [SerializeField] float m_ExitButtonWidth = 120f;
+        [SerializeField] float m_ExitButtonHeight = 44f;
+        [SerializeField] int m_ExitFontSize = 22;
+        [SerializeField] Vector2 m_ExitOffset = new Vector2(-20f, -20f); // 右上角偏移（x 向左、y 向下）
 
         readonly SplatRenderService m_Service = new();
         IPlatformFilePicker m_Picker;
@@ -165,6 +171,14 @@ namespace QGStudio.SplatLoader
             AddMessage("就绪：点击上方按钮选择 PLY 文件", MessageType.Info);
 
             m_Button.onClick.AddListener(OnPickFileClicked);
+
+            // 退出按钮（右上角，2026-08-18 新增；打包版演示用）
+            var exitBtn = CreateButton(canvas.transform, "SplatExitButton", m_ExitButtonLabel,
+                m_ExitButtonWidth, m_ExitButtonHeight);
+            exitBtn.onClick.AddListener(OnExitClicked);
+            SetTopRight(exitBtn.GetComponent<RectTransform>(), m_ExitOffset.x, m_ExitOffset.y);
+            var exitLabel = exitBtn.GetComponentInChildren<Text>();
+            if (exitLabel != null) exitLabel.fontSize = m_ExitFontSize; // 应用退出按钮专属字体
         }
 
         /// <summary>左上角锚定（anchor/pivot 均为左上，anchoredPosition = 相对左上角偏移）。</summary>
@@ -183,6 +197,25 @@ namespace QGStudio.SplatLoader
             rt.anchorMax = new Vector2(0f, 0f);
             rt.pivot = new Vector2(0f, 0f);
             rt.anchoredPosition = new Vector2(x, y);
+        }
+
+        /// <summary>右上角锚定（anchor/pivot 均为右上）。</summary>
+        static void SetTopRight(RectTransform rt, float x, float y)
+        {
+            rt.anchorMin = new Vector2(1f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.anchoredPosition = new Vector2(x, y);
+        }
+
+        /// <summary>退出程序（打包版）；Editor 里退 Play 模式方便测试。</summary>
+        static void OnExitClicked()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         static Font s_Font;

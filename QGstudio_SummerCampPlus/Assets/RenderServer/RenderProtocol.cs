@@ -45,7 +45,8 @@ namespace RenderServer
         public string requestId;
         public RenderMeta metadata;     // start / upload 用
         public string roundId;          // start 用：本轮文件夹名（服务器生成，会话 id 与其对齐）
-        public string savedPath;        // upload 用：PLY 的本地绝对路径
+        public string savedPath;        // upload 用：PLY 的本地绝对路径（同机图形端直接读）
+        public string fileUrl;          // upload 用：PLY 的公网下载 URL（远程图形端按需下载）
         public string filename;         // upload 用：原始文件名
         public RenderSummary summary;   // end 用
     }

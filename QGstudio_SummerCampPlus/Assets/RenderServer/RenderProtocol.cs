@@ -44,7 +44,8 @@ namespace RenderServer
         public string type;             // "start" | "upload" | "end" | "graphics_ready_ack"
         public string requestId;
         public RenderMeta metadata;     // start / upload 用
-        public string savedPath;        // upload 用：服务器已存好的 PLY 本地路径
+        public string roundId;          // start 用：本轮文件夹名（服务器生成，会话 id 与其对齐）
+        public string savedPath;        // upload 用：PLY 的本地绝对路径
         public string filename;         // upload 用：原始文件名
         public RenderSummary summary;   // end 用
     }

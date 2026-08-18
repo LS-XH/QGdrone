@@ -186,7 +186,8 @@ namespace RenderServer
                 ok = m_Handler.OnStartRender();
                 if (ok)
                 {
-                    SessionManager.BeginSession(msg.metadata);
+                    // roundId 是服务器本轮文件夹名，用同一 id 当会话 id，两边名字对齐
+                    SessionManager.BeginSession(msg.metadata, msg.roundId);
                     err = "start ok";
                 }
                 else
@@ -215,11 +216,12 @@ namespace RenderServer
                 EnsureHandler();
                 if (string.IsNullOrEmpty(msg.savedPath))
                     throw new Exception("服务器未传 savedPath");
+                // savedPath 是服务器给的绝对路径，直接校验文件存在
                 if (!File.Exists(msg.savedPath))
                     throw new Exception($"PLY 文件不存在: {msg.savedPath}");
 
                 SessionManager.RecordPly(msg.savedPath, msg.metadata);
-                m_Handler.RenderPly(msg.savedPath); // 黑盒：只传地址
+                m_Handler.RenderPly(msg.savedPath); // 黑盒：传绝对路径
                 ok = true;
                 err = "render ok";
             }

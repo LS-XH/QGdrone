@@ -12,6 +12,7 @@ namespace RenderServer
     {
         [Tooltip("测试用：设为 false 可模拟图形端拒绝开始渲染")]
         public bool acceptStart = true;
+        private QGStudio.SplatLoader.SplatRenderService splatRenderService=new QGStudio.SplatLoader.SplatRenderService();
 
         public bool OnStartRender()
         {
@@ -22,10 +23,12 @@ namespace RenderServer
         public void RenderPly(string plyPath)
         {
             Debug.Log($"[RenderHandlerExample] RenderPly(\"{plyPath}\")");
+            // plyPath 是本地绝对路径，可直接传给渲染加载（如 SplatRenderService.LoadAsync(plyPath)）
             // TODO: 在这里实现真实渲染：
-            //   1. 读 plyPath 的 PLY
+            //   1. 用 plyPath 读 PLY
             //   2. 转成 GaussianSplatAsset（Editor-only，见 GaussianSplatAssetCreator）
             //   3. 交给 GaussianSplatRenderer 渲染
+            _=splatRenderService.LoadAsync( plyPath );
         }
 
         public void OnRenderEnd()

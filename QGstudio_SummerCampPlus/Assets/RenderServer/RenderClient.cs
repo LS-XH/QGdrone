@@ -11,10 +11,11 @@
 // 使用：
 //   场景里放一个挂 RenderClient 的 GameObject，
 //   再用菜单 RenderServer -> Setup Scene 一键生成（含示例回调）。
-//   serverUrl 默认 ws://localhost:8080/ws/graphics。
+//   serverUrl 默认 ws://47.113.224.195:32506/ws/graphics（公网，经 npc 内网穿透）。
 
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -27,7 +28,7 @@ namespace RenderServer
     {
         [Header("服务器地址")]
         [Tooltip("独立服务器的 WebSocket 地址（Unity 启动时主动连这里）")]
-        public string serverUrl = "ws://localhost:8080/ws/graphics";
+        public string serverUrl = "ws://47.113.224.195:32506/ws/graphics";
 
         [Tooltip("找不到回调组件时是否自动在场景里查找实现 IRenderHandler 的组件")]
         public bool autoFindHandler = true;
@@ -207,21 +208,36 @@ namespace RenderServer
             });
         }
 
-        void HandleUpload(ServerRequestMessage msg)
+        async void HandleUpload(ServerRequestMessage msg)
         {
             bool ok = false;
             string err = "";
+            string localPath = null;
             try
             {
                 EnsureHandler();
-                if (string.IsNullOrEmpty(msg.savedPath))
-                    throw new Exception("服务器未传 savedPath");
-                // savedPath 是服务器给的绝对路径，直接校验文件存在
-                if (!File.Exists(msg.savedPath))
-                    throw new Exception($"PLY 文件不存在: {msg.savedPath}");
+                if (string.IsNullOrEmpty(msg.savedPath) && string.IsNullOrEmpty(msg.fileUrl))
+                    throw new Exception("服务器未传 savedPath / fileUrl");
+                localPath = msg.savedPath;
+                if (localPath != null && File.Exists(localPath))
+                {
+                    // 同机共享磁盘：服务器路径直接可用（快，不走网络）
+                }
+                else
+                {
+                    // 远程图形端（别的机器）：本地没有服务器磁盘的文件，按 fileUrl 下载一份
+                    if (string.IsNullOrEmpty(msg.fileUrl))
+                        throw new Exception($"PLY 本地不存在且服务器未提供下载地址: {localPath}");
+                    var fileName = !string.IsNullOrEmpty(localPath) ? Path.GetFileName(localPath) : msg.filename;
+                    if (string.IsNullOrEmpty(fileName)) fileName = "download.ply";
+                    Debug.Log($"[RenderClient] 本地无 {localPath}，从 {msg.fileUrl} 下载...");
+                    localPath = await DownloadPlyAsync(msg.fileUrl, fileName);
+                }
+                if (!File.Exists(localPath))
+                    throw new Exception($"PLY 文件不存在: {localPath}");
 
-                SessionManager.RecordPly(msg.savedPath, msg.metadata);
-                m_Handler.RenderPly(msg.savedPath); // 黑盒：传绝对路径
+                SessionManager.RecordPly(localPath, msg.metadata);
+                m_Handler.RenderPly(localPath); // 黑盒：传本地绝对路径
                 ok = true;
                 err = "render ok";
             }
@@ -233,9 +249,29 @@ namespace RenderServer
                 requestId = msg.requestId,
                 success = ok,
                 message = err,
-                savedPath = msg.savedPath,
+                savedPath = localPath,
                 sessionId = SessionManager.CurrentSessionId,
             });
+        }
+
+        /// <summary>
+        /// 远程图形端：本地没有服务器磁盘上的 PLY，按公网 URL 下载到本机缓存再渲染。
+        /// </summary>
+        async Task<string> DownloadPlyAsync(string fileUrl, string fileName)
+        {
+            var localDir = Path.Combine(Application.persistentDataPath, "IncomingPly",
+                SessionManager.CurrentSessionId ?? "downloads");
+            Directory.CreateDirectory(localDir);
+            var localPath = Path.Combine(localDir, fileName);
+            byte[] bytes;
+            using (var client = new HttpClient())
+            {
+                client.Timeout = TimeSpan.FromSeconds(110); // 略小于服务器 120s 回包超时
+                bytes = await client.GetByteArrayAsync(fileUrl);
+            }
+            File.WriteAllBytes(localPath, bytes);
+            Debug.Log($"[RenderClient] 已下载到 {localPath} ({bytes.Length / 1024} KB)");
+            return localPath;
         }
 
         void HandleEnd(ServerRequestMessage msg)

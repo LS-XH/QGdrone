@@ -19,6 +19,9 @@ namespace QGStudio.SplatLoader
             var renderer = Object.FindFirstObjectByType<GaussianSplatRenderer>();
             if (renderer == null)
             {
+                // 提示性警告（2026-08-17 用户实测：完全空的新场景仅挂 SplatLoadUI 时自动创建不可靠，
+                // 规范做法 = 场景中手动放置挂 GaussianSplatRenderer 的空物体；自动创建仅作兜底）
+                Debug.LogWarning("[SplatBinder] 场景中未找到 GaussianSplatRenderer，已自动创建兜底（建议在场景中手动放置一个挂该组件的空物体，见施工简报-20260817 新场景重建清单）");
                 var go = new GameObject("GaussianSplatRuntimeRenderer");
                 renderer = go.AddComponent<GaussianSplatRenderer>();
             }

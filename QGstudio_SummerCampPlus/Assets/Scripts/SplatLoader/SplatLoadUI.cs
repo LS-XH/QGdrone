@@ -29,28 +29,28 @@ namespace QGStudio.SplatLoader
 {
     public class SplatLoadUI : MonoBehaviour
     {
-        // ---- 布局常量（左上角垂直排布，margin 20，间距 10）----
-        const float k_Margin = 20f;
-        const float k_Spacing = 10f;
-        const float k_ButtonWidth = 200f;
-        const float k_ButtonHeight = 80f;
-        const float k_SliderWidth = 300f;
-        const float k_SliderHeight = 24f;
-        const float k_PercentWidth = 64f;
-        const float k_StatusWidth = 640f;
-        const float k_StatusHeight = 30f;      // 改造：原 140 多行状态文本 → 一行当前状态
-        const int k_FontSizeButton = 22;
-        const int k_FontSizeText = 24;
-        const int k_FontSizeStatus = 20;       // 当前状态行（小字）
-        const int k_FontSizeMessage = 20;      // 消息栏条目
-
-        // ---- 消息栏常量 ----
-        const float k_MessageWidth = 520f;
-        const float k_MessageHeight = 220f;
-        const int k_MaxMessages = 30;          // 控制台式：保留最近 30 条，超出删最旧
-
-        // ---- 进度平滑 ----
-        const float k_ProgressSpeed = 0.5f;    // 显示值追赶目标值的速度（单位/秒）
+        // ---- 布局参数（2026-08-18：const → [SerializeField]，Inspector 可调；默认值 = 原常量）----
+        [Header("布局")]
+        [SerializeField] float m_Margin = 20f;
+        [SerializeField] float m_Spacing = 10f;
+        [SerializeField] float m_ButtonWidth = 200f;
+        [SerializeField] float m_ButtonHeight = 80f;
+        [SerializeField] float m_SliderWidth = 300f;
+        [SerializeField] float m_SliderHeight = 24f;
+        [SerializeField] float m_PercentWidth = 64f;
+        [SerializeField] float m_StatusWidth = 640f;
+        [SerializeField] float m_StatusHeight = 30f;      // 改造：原 140 多行状态文本 → 一行当前状态
+        [Header("字体")]
+        [SerializeField] int m_FontSizeButton = 22;
+        [SerializeField] int m_FontSizeText = 24;
+        [SerializeField] int m_FontSizeStatus = 20;       // 当前状态行（小字）
+        [SerializeField] int m_FontSizeMessage = 20;      // 消息栏条目
+        [Header("消息栏")]
+        [SerializeField] float m_MessageWidth = 520f;
+        [SerializeField] float m_MessageHeight = 220f;
+        [SerializeField] int m_MaxMessages = 30;          // 控制台式：保留最近 30 条，超出删最旧
+        [Header("进度平滑")]
+        [SerializeField] float m_ProgressSpeed = 0.5f;    // 显示值追赶目标值的速度（单位/秒）
 
         readonly SplatRenderService m_Service = new();
         IPlatformFilePicker m_Picker;
@@ -90,7 +90,7 @@ namespace QGStudio.SplatLoader
             // 进度平滑：显示值向目标值靠拢（转换 12s 内肉眼可见连续前进，不再台阶跳变）
             if (Mathf.Abs(m_DisplayProgress - m_TargetProgress) > 0.001f)
             {
-                m_DisplayProgress = Mathf.MoveTowards(m_DisplayProgress, m_TargetProgress, k_ProgressSpeed * Time.unscaledDeltaTime);
+                m_DisplayProgress = Mathf.MoveTowards(m_DisplayProgress, m_TargetProgress, m_ProgressSpeed * Time.unscaledDeltaTime);
                 m_Progress.SetValueWithoutNotify(m_DisplayProgress);
                 m_PercentText.text = Mathf.RoundToInt(m_DisplayProgress * 100f) + "%";
             }
@@ -142,23 +142,23 @@ namespace QGStudio.SplatLoader
 
             // 按钮
             m_Button = CreateButton(canvas.transform, "SplatLoadButton", "选择 PLY 文件",
-                k_ButtonWidth, k_ButtonHeight);
-            SetTopLeft(m_Button.GetComponent<RectTransform>(), k_Margin, -k_Margin);
+                m_ButtonWidth, m_ButtonHeight);
+            SetTopLeft(m_Button.GetComponent<RectTransform>(), m_Margin, -m_Margin);
 
             // 进度条 + 百分比文本
-            float sliderY = -(k_Margin + k_ButtonHeight + k_Spacing);
-            m_Progress = CreateSlider(canvas.transform, "SplatLoadProgress", k_SliderWidth, k_SliderHeight);
-            SetTopLeft(m_Progress.GetComponent<RectTransform>(), k_Margin, sliderY);
+            float sliderY = -(m_Margin + m_ButtonHeight + m_Spacing);
+            m_Progress = CreateSlider(canvas.transform, "SplatLoadProgress", m_SliderWidth, m_SliderHeight);
+            SetTopLeft(m_Progress.GetComponent<RectTransform>(), m_Margin, sliderY);
             m_PercentText = CreateText(canvas.transform, "SplatLoadPercent", "0%",
-                k_PercentWidth, k_SliderHeight, k_FontSizeText, TextAnchor.MiddleLeft);
-            SetTopLeft(m_PercentText.rectTransform, k_Margin + k_SliderWidth + k_Spacing, sliderY);
+                m_PercentWidth, m_SliderHeight, m_FontSizeText, TextAnchor.MiddleLeft);
+            SetTopLeft(m_PercentText.rectTransform, m_Margin + m_SliderWidth + m_Spacing, sliderY);
 
             // 当前状态行（改造：一行，原 640×140 多行状态文本的信息职责移交左下角消息栏）
             m_CurrentStatusText = CreateText(canvas.transform, "SplatLoadStatus",
                 "就绪：点击上方按钮选择 PLY 文件",
-                k_StatusWidth, k_StatusHeight, k_FontSizeStatus, TextAnchor.UpperLeft);
-            SetTopLeft(m_CurrentStatusText.rectTransform, k_Margin,
-                -(k_Margin + k_ButtonHeight + k_Spacing + k_SliderHeight + k_Spacing));
+                m_StatusWidth, m_StatusHeight, m_FontSizeStatus, TextAnchor.UpperLeft);
+            SetTopLeft(m_CurrentStatusText.rectTransform, m_Margin,
+                -(m_Margin + m_ButtonHeight + m_Spacing + m_SliderHeight + m_Spacing));
 
             // 消息栏（左下角，控制台式滚动）
             CreateMessageBox(canvas.transform);
@@ -222,7 +222,7 @@ namespace QGStudio.SplatLoader
             labelRt.offsetMax = Vector2.zero;
             var text = labelGo.AddComponent<Text>();
             text.font = GetBuiltinFont();
-            text.fontSize = k_FontSizeButton;
+            text.fontSize = m_FontSizeButton;
             text.alignment = TextAnchor.MiddleCenter;
             text.color = Color.white;
             text.text = label;
@@ -302,8 +302,8 @@ namespace QGStudio.SplatLoader
             var go = new GameObject("SplatMessageBox", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var rt = (RectTransform)go.transform;
-            rt.sizeDelta = new Vector2(k_MessageWidth, k_MessageHeight);
-            SetBottomLeft(rt, k_Margin, k_Margin);
+            rt.sizeDelta = new Vector2(m_MessageWidth, m_MessageHeight);
+            SetBottomLeft(rt, m_Margin, m_Margin);
             var bg = go.AddComponent<Image>();
             bg.color = new Color(0f, 0f, 0f, 0.65f);
 
@@ -355,7 +355,7 @@ namespace QGStudio.SplatLoader
 
             var t = entryGo.AddComponent<Text>();
             t.font = GetBuiltinFont();
-            t.fontSize = k_FontSizeMessage;
+            t.fontSize = m_FontSizeMessage;
             t.alignment = TextAnchor.UpperLeft;
             t.color = GetMessageColor(type);
             t.text = text;
@@ -364,7 +364,7 @@ namespace QGStudio.SplatLoader
             t.verticalOverflow = VerticalWrapMode.Overflow;
 
             // 上限：删最旧
-            while (m_MessageContent.childCount > k_MaxMessages)
+            while (m_MessageContent.childCount > m_MaxMessages)
                 Destroy(m_MessageContent.GetChild(0).gameObject);
 
             // 立即重建布局；用户停在底部附近（verticalNormalizedPosition≈0=底部）才自动滚底

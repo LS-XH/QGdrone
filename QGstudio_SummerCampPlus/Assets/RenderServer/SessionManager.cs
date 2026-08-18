@@ -4,12 +4,16 @@
 //   本轮(会话)记录：
 //        <persistentDataPath>/RenderSessions/<sessionId>/manifest.json
 //      结束时写，供 UI 浏览"每一轮渲染"。
-//   模型级大清单（每个模型的文件夹绝对路径 + 每个 PLY 的绝对路径/JSON）由服务器
-//   维护在 <SAVE_DIR>/allModels.json，Unity 这边不再写模型夹 manifest.json。
+//   模型级大清单（每个模型的文件夹绝对路径 + 每个 PLY 的绝对路径/JSON）：
+//       - 所有机器统一逻辑：收到的 PLY 落本机 Assets/Data/Incoming/<模型>/<轮次>/…，
+//         UpsertLocalPly 把记录写进本机 allModels.json（离线浏览读它）；
+//       - 服务器所在机器：Node 服务器进程也写同一份大清单（SAVE_DIR/allModels.json），
+//         两边"按路径去重 + 有变化才落盘"，互不覆盖。
 
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using UnityEngine;
 
 namespace RenderServer
@@ -100,6 +104,65 @@ namespace RenderServer
         }
 
         // ------------------------------------------------------------------
+        // 本机模型库索引（所有机器统一逻辑，不特殊对待服务器机）
+        //   收到的 PLY 落在 Assets/Data/Incoming/<模型>/<轮次>/…，
+        //   UpsertLocalPly 把记录追加进本机 allModels.json —— 每台机器一份自己的索引，
+        //   离线浏览读它；字段结构与服务器大清单完全一致。服务器那台机器上 Node 进程也会写
+        //   这份大清单，本函数"按路径去重 + 有变化才落盘"避免互相覆盖/重复。
+        // ------------------------------------------------------------------
+
+        /// <summary>清洗名字：去掉 Windows 非法字符，防路径穿越（与服务器 sanitizeName 一致）。</summary>
+        public static string SanitizeName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "unknown";
+            var bad = Path.GetInvalidFileNameChars();
+            var sb = new StringBuilder();
+            foreach (var c in name)
+                sb.Append(Array.IndexOf(bad, c) >= 0 ? '_' : c);
+            var s = sb.ToString().Trim().TrimEnd('.', ' '); // Windows 文件名不能以点/空格结尾
+            if (string.IsNullOrEmpty(s) || s == "." || s == "..") return "unknown";
+            return s.Length > 80 ? s.Substring(0, 80) : s;
+        }
+
+        /// <summary>路径统一正斜杠（与服务器大清单一致；null/空返回空串）。</summary>
+        static string NormalizePath(string p) => string.IsNullOrEmpty(p) ? "" : p.Replace('\\', '/');
+
+        /// <summary>把本机收到的一个 PLY 追加进本机 allModels.json（去重：同路径不重复加）。</summary>
+        public static void UpsertLocalPly(string plyAbsPath, RenderMeta meta)
+        {
+            try
+            {
+                var idx = LoadModelsIndex();
+                var modelName = SanitizeName(meta != null ? meta.modelName : null);
+                // modelFolder 是"模型文件夹"（不是轮次夹）；路径统一正斜杠，与服务器大清单字段一致
+                var modelFolder = Path.Combine(SessionManager.IncomingDir, modelName).Replace('\\', '/');
+                var entryPath = NormalizePath(plyAbsPath);
+                var model = idx.models.Find(m => m.modelName == modelName);
+                bool changed = false;
+                if (model == null)
+                {
+                    model = new ModelEntry { modelName = modelName, modelFolder = modelFolder };
+                    idx.models.Add(model);
+                    changed = true;
+                }
+                else if (string.IsNullOrEmpty(model.modelFolder))
+                {
+                    model.modelFolder = modelFolder;
+                    changed = true;
+                }
+                if (!model.plies.Exists(p => p.relativePath == entryPath))
+                {
+                    model.plies.Add(new PlyEntry { relativePath = entryPath, metadata = meta });
+                    changed = true;
+                }
+                // 有变化才落盘：服务器机上 Node 进程可能已写过同一条，避免整文件重写把它覆盖掉
+                if (changed) SaveModelsIndex(idx);
+                Debug.Log($"[SessionManager] 本机库已记录 {entryPath}（{modelName} 共 {model.plies.Count} 条）");
+            }
+            catch (Exception e) { Debug.LogError($"[SessionManager] 更新本机库失败: {e.Message}"); }
+        }
+
+        // ------------------------------------------------------------------
         // 删除本地文件接口（图形组 UI / 脚本直接调用，不经过服务器）
         // 操作的是本地 PLY 文件夹 + 大清单 <SAVE_DIR>/allModels.json
         // ------------------------------------------------------------------
@@ -165,8 +228,16 @@ namespace RenderServer
                 if (model != null)
                 {
                     int before = model.plies.Count;
-                    model.plies.RemoveAll(p => p.relativePath == plyAbsPath ||
-                                               Path.GetFileName(p.relativePath) == Path.GetFileName(plyAbsPath));
+                    var targetDir = NormalizePath(Path.GetDirectoryName(plyAbsPath));
+                    var targetName = Path.GetFileName(plyAbsPath);
+                    model.plies.RemoveAll(p =>
+                    {
+                        var rel = NormalizePath(p.relativePath);
+                        // 精确匹配；同名只能删同一轮次夹里的，防误删其它轮次的同名 PLY
+                        return rel == NormalizePath(plyAbsPath) ||
+                               (string.Equals(Path.GetFileName(rel), targetName, StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(NormalizePath(Path.GetDirectoryName(rel)), targetDir, StringComparison.OrdinalIgnoreCase));
+                    });
                     if (model.plies.Count != before)
                     {
                         if (model.plies.Count == 0)

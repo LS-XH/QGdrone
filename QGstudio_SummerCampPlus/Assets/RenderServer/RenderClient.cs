@@ -14,6 +14,7 @@
 //   serverUrl 默认 ws://47.113.224.195:32506/ws/graphics（公网，经 npc 内网穿透）。
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Net.WebSockets;
@@ -221,22 +222,50 @@ namespace RenderServer
                 localPath = msg.savedPath;
                 if (localPath != null && File.Exists(localPath))
                 {
-                    // 同机共享磁盘：服务器路径直接可用（快，不走网络）
+                    // 本机就有服务器路径的文件（服务器这台机器通常就是）：直接用，不走网络。
+                    // 不特殊对待——下面照样记本机 allModels.json。
                 }
                 else
                 {
-                    // 远程图形端（别的机器）：本地没有服务器磁盘的文件，按 fileUrl 下载一份
+                    // 本机没有服务器磁盘上的文件：按 fileUrl 下载一份进本机模型库
+                    // Assets/Data/Incoming/<模型>/<轮次>/…，离线也能看。
                     if (string.IsNullOrEmpty(msg.fileUrl))
                         throw new Exception($"PLY 本地不存在且服务器未提供下载地址: {localPath}");
                     var fileName = !string.IsNullOrEmpty(localPath) ? Path.GetFileName(localPath) : msg.filename;
+                    var modelName = msg.metadata != null ? msg.metadata.modelName : null;
+                    var roundId = msg.roundId;
+                    // 旧服务器没随 upload 传 roundId / 元数据缺 modelName 时，从下载 URL 拆
+                    // （URL 形如 …/api/v1/files/<模型>/<轮次>/<文件>，每段都已 URL 编码）
+                    if (TryParseFileUrl(msg.fileUrl, out var urlModel, out var urlRound, out var urlFile))
+                    {
+                        if (string.IsNullOrEmpty(roundId)) roundId = urlRound;
+                        if (string.IsNullOrEmpty(modelName)) modelName = urlModel;
+                        if (string.IsNullOrEmpty(fileName)) fileName = urlFile;
+                    }
                     if (string.IsNullOrEmpty(fileName)) fileName = "download.ply";
-                    Debug.Log($"[RenderClient] 本地无 {localPath}，从 {msg.fileUrl} 下载...");
-                    localPath = await DownloadPlyAsync(msg.fileUrl, fileName);
+                    fileName = SessionManager.SanitizeName(fileName); // 文件名也清洗，防路径穿越
+                    modelName = SessionManager.SanitizeName(modelName);
+                    roundId = SessionManager.SanitizeName(roundId);
+                    // 本机库路径：Assets/Data/Incoming/<模型>/<轮次>/<文件>（与服务器落盘结构一致）
+                    var libPath = Path.Combine(SessionManager.IncomingDir, modelName, roundId, fileName);
+                    if (File.Exists(libPath))
+                    {
+                        // 之前已经存过同一份 → 直接用，不用再下载（索引由 UpsertLocalPly 兜底补）
+                        Debug.Log($"[RenderClient] 本机库已有 {libPath}，跳过下载直接渲染");
+                        localPath = libPath;
+                    }
+                    else
+                    {
+                        Debug.Log($"[RenderClient] 本地无 {localPath}，从 {msg.fileUrl} 下载到本机库 {modelName}/{roundId}/…");
+                        localPath = await DownloadPlyAsync(msg.fileUrl, modelName, roundId, fileName);
+                    }
                 }
                 if (!File.Exists(localPath))
                     throw new Exception($"PLY 文件不存在: {localPath}");
 
                 SessionManager.RecordPly(localPath, msg.metadata);
+                // 所有机器统一逻辑：收到的 PLY 都记进本机 allModels.json（去重由 UpsertLocalPly 保证）
+                SessionManager.UpsertLocalPly(localPath, msg.metadata);
                 m_Handler.RenderPly(localPath); // 黑盒：传本地绝对路径
                 ok = true;
                 err = "render ok";
@@ -254,24 +283,74 @@ namespace RenderServer
             });
         }
 
+        /// <summary>下载大小上限（防恶意/超大 PLY 撑爆内存，1GB）。</summary>
+        const long MaxDownloadBytes = 1024L * 1024 * 1024;
+
         /// <summary>
-        /// 远程图形端：本地没有服务器磁盘上的 PLY，按公网 URL 下载到本机缓存再渲染。
+        /// 按公网 URL 把 PLY 流式下载到本机模型库
+        /// Assets/Data/Incoming/&lt;模型&gt;/&lt;轮次&gt;/&lt;文件&gt;（与服务器落盘结构一致，离线可查看）。
         /// </summary>
-        async Task<string> DownloadPlyAsync(string fileUrl, string fileName)
+        async Task<string> DownloadPlyAsync(string fileUrl, string modelName, string roundId, string fileName)
         {
-            var localDir = Path.Combine(Application.persistentDataPath, "IncomingPly",
-                SessionManager.CurrentSessionId ?? "downloads");
-            Directory.CreateDirectory(localDir);
-            var localPath = Path.Combine(localDir, fileName);
-            byte[] bytes;
-            using (var client = new HttpClient())
+            var dir = Path.Combine(SessionManager.IncomingDir, modelName, roundId ?? "downloads");
+            Directory.CreateDirectory(dir);
+            var localPath = Path.Combine(dir, fileName);
+            try
             {
-                client.Timeout = TimeSpan.FromSeconds(110); // 略小于服务器 120s 回包超时
-                bytes = await client.GetByteArrayAsync(fileUrl);
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(110); // 略小于服务器 120s 回包超时
+                    using (var src = await client.GetStreamAsync(fileUrl))
+                    using (var dst = new FileStream(localPath, FileMode.Create, FileAccess.Write))
+                    {
+                        long written = 0;
+                        var buf = new byte[64 * 1024];
+                        int n;
+                        while ((n = await src.ReadAsync(buf, 0, buf.Length)) > 0)
+                        {
+                            written += n;
+                            if (written > MaxDownloadBytes)
+                                throw new IOException($"PLY 下载超过大小上限 ({MaxDownloadBytes / (1024 * 1024)}MB)：{fileUrl}");
+                            await dst.WriteAsync(buf, 0, n);
+                        }
+                    }
+                }
             }
-            File.WriteAllBytes(localPath, bytes);
-            Debug.Log($"[RenderClient] 已下载到 {localPath} ({bytes.Length / 1024} KB)");
+            catch
+            {
+                if (File.Exists(localPath)) { try { File.Delete(localPath); } catch { } } // 失败不留半截文件
+                throw;
+            }
+            Debug.Log($"[RenderClient] 已下载到本机库 {localPath} ({new FileInfo(localPath).Length / 1024} KB)");
             return localPath;
+        }
+
+        /// <summary>
+        /// 从下载 URL 拆出 模型/轮次/文件名。
+        /// URL 形如 …/api/v1/files/&lt;模型&gt;/&lt;轮次&gt;/&lt;文件&gt;，每段都已 URL 编码，这里逐个解码。
+        /// </summary>
+        static bool TryParseFileUrl(string url, out string model, out string round, out string file)
+        {
+            model = round = file = null;
+            var segs = new List<string>();
+            try
+            {
+                foreach (var raw in url.Split('/'))
+                {
+                    if (string.IsNullOrEmpty(raw)) continue;
+                    var seg = raw;
+                    var cut = seg.IndexOfAny(new[] { '?', '#' }); // 去掉 query/fragment，防 token 混进文件名
+                    if (cut >= 0) seg = seg.Substring(0, cut);
+                    if (seg.Length == 0) continue;
+                    segs.Add(Uri.UnescapeDataString(seg));
+                }
+            }
+            catch { return false; }
+            if (segs.Count < 3) return false;
+            file = segs[segs.Count - 1];
+            round = segs[segs.Count - 2];
+            model = segs[segs.Count - 3];
+            return true;
         }
 
         void HandleEnd(ServerRequestMessage msg)

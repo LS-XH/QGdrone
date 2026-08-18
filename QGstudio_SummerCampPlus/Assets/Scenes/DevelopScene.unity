@@ -438,7 +438,7 @@ GameObject:
   - component: {fileID: 435603894}
   - component: {fileID: 435603893}
   m_Layer: 0
-  m_Name: GameObject
+  m_Name: SplatRenderer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

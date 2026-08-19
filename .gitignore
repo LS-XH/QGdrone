@@ -35,7 +35,7 @@ reports/
 
 # Colcon runtime logs created from the repository root
 /log/
-
+.npm-tmp-cache/*
 # OS files
 Thumbs.db
 Desktop.ini
@@ -45,3 +45,5 @@ Desktop.ini
 *.pem
 *.token
 .env
+
+

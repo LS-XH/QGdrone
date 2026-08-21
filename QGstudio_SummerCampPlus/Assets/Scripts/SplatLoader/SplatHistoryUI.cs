@@ -30,38 +30,78 @@ namespace QGStudio.SplatLoader
 {
     public class SplatHistoryUI : MonoBehaviour
     {
-        [Header("选择模型按钮")]
-        [SerializeField] float m_ToggleButtonWidth = 200f;
-        [SerializeField] float m_ToggleButtonHeight = 80f;
-        [SerializeField] int m_ToggleFontSize = 24;
+        [Header("选择模型按钮 / Toggle Button")]
+        [Tooltip("按钮宽度 Width")] [SerializeField] float m_ToggleButtonWidth = 200f;
+        [Tooltip("按钮高度 Height")] [SerializeField] float m_ToggleButtonHeight = 80f;
+        [Tooltip("按钮文字大小 Font size")] [SerializeField] int m_ToggleFontSize = 24;
+        [Tooltip("按钮文字 Label text")] [SerializeField] string m_ToggleButtonLabel = "选择模型";
+        [Tooltip("按钮颜色 Button color")] [SerializeField] Color m_ToggleButtonColor = new(0.14f, 0.32f, 0.52f, 0.95f);
 
-        [Header("面板")]
-        [SerializeField] float m_PanelWidth = 960f;
-        [SerializeField] float m_PanelHeight = 600f;
-        [SerializeField] int m_TitleFontSize = 26;
+        [Header("面板 / Panel")]
+        [Tooltip("面板宽度 Width")] [SerializeField] float m_PanelWidth = 960f;
+        [Tooltip("面板高度 Height")] [SerializeField] float m_PanelHeight = 600f;
+        [Tooltip("标题文字大小 Title font size")] [SerializeField] int m_TitleFontSize = 26;
+        [Tooltip("标题文字 Title text")] [SerializeField] string m_TitleText = "选择模型";
+        [Tooltip("面板背景色 Background color")] [SerializeField] Color m_PanelBgColor = new(0.06f, 0.07f, 0.09f, 0.93f);
 
-        [Header("列表行")]
-        [SerializeField] float m_SceneRowHeight = 56f;
-        [SerializeField] float m_VersionRowHeight = 56f;
-        [SerializeField] float m_SectionHeaderHeight = 36f;
-        [SerializeField] int m_SceneFontSize = 24;
-        [SerializeField] int m_SceneCountFontSize = 18;
-        [SerializeField] int m_VersionPrimaryFontSize = 20;
-        [SerializeField] int m_VersionDetailFontSize = 17;
-        [SerializeField] float m_DeleteButtonWidth = 44f;
-        [SerializeField] float m_VersionIndent = 36f;
+        [Header("列表行 / List Rows")]
+        [Tooltip("场景行高度 Scene row height")] [SerializeField] float m_SceneRowHeight = 56f;
+        [Tooltip("版本行高度 Version row height")] [SerializeField] float m_VersionRowHeight = 56f;
+        [Tooltip("分隔标题高度 Section header height")] [SerializeField] float m_SectionHeaderHeight = 36f;
+        [Tooltip("场景名字号 Scene name font size")] [SerializeField] int m_SceneFontSize = 24;
+        [Tooltip("版本数/次要文字字号 Count font size")] [SerializeField] int m_SceneCountFontSize = 18;
+        [Tooltip("版本主文字字号 Version primary font size")] [SerializeField] int m_VersionPrimaryFontSize = 20;
+        [Tooltip("版本详情字号 Version detail font size")] [SerializeField] int m_VersionDetailFontSize = 17;
+        [Tooltip("删除按钮宽度 Delete button width")] [SerializeField] float m_DeleteButtonWidth = 44f;
+        [Tooltip("版本行缩进像素 Version indent")] [SerializeField] float m_VersionIndent = 36f;
+        [Tooltip("场景行背景色 Scene row color")] [SerializeField] Color m_SceneRowColor = new(0.12f, 0.14f, 0.18f, 0.88f);
+        [Tooltip("场景行展开色 Scene row expanded color")] [SerializeField] Color m_SceneRowExpandedColor = new(0.16f, 0.28f, 0.42f, 0.92f);
+        [Tooltip("版本行背景色 Version row color")] [SerializeField] Color m_VersionRowColor = new(0.08f, 0.09f, 0.12f, 0.75f);
+        [Tooltip("独立模型行背景色 Local row color")] [SerializeField] Color m_LocalRowColor = new(0.10f, 0.12f, 0.16f, 0.85f);
+        [Tooltip("删除按钮颜色 Delete button color")] [SerializeField] Color m_DeleteButtonColor = new(0.55f, 0.15f, 0.15f, 0.88f);
+        [Tooltip("删除按钮文字 Delete label")] [SerializeField] string m_DeleteButtonLabel = "删";
+        [Tooltip("关闭按钮文字 Close label")] [SerializeField] string m_CloseButtonLabel = "✕";
 
-        [Header("手动选择按钮（左下角小按钮）")]
-        [SerializeField] float m_ManualButtonWidth = 140f;
-        [SerializeField] float m_ManualButtonHeight = 40f;
-        [SerializeField] int m_ManualFontSize = 17;
+        [Header("文字颜色 / Text Colors")]
+        [Tooltip("主文字色 Main text color")] [SerializeField] Color m_TextMainColor = Color.white;
+        [Tooltip("次要文字色 Secondary text color")] [SerializeField] Color m_TextSubColor = new(0.62f, 0.64f, 0.68f);
+        [Tooltip("提示/空状态文字色 Hint text color")] [SerializeField] Color m_TextHintColor = new(0.45f, 0.47f, 0.5f);
 
-        [Header("确认弹窗")]
-        [SerializeField] float m_ConfirmWidth = 460f;
-        [SerializeField] float m_ConfirmHeight = 220f;
-        [SerializeField] int m_ConfirmFontSize = 20;
+        [Header("交互颜色 / Interaction Colors")]
+        [Tooltip("悬停色 Hover color")] [SerializeField] Color m_HoverColor = new(0.18f, 0.22f, 0.3f, 0.95f);
+        [Tooltip("按下色 Pressed color")] [SerializeField] Color m_PressedColor = new(0.1f, 0.12f, 0.18f, 1f);
+        [Tooltip("禁用色 Disabled color")] [SerializeField] Color m_DisabledColor = new(0.3f, 0.3f, 0.3f, 0.5f);
 
-        SplatLoadUI m_LoadUI;
+        [Header("手动选择按钮 / Manual Pick Button")]
+        [Tooltip("按钮宽度 Width")] [SerializeField] float m_ManualButtonWidth = 140f;
+        [Tooltip("按钮高度 Height")] [SerializeField] float m_ManualButtonHeight = 40f;
+        [Tooltip("文字大小 Font size")] [SerializeField] int m_ManualFontSize = 17;
+        [Tooltip("按钮文字 Label text")] [SerializeField] string m_ManualButtonLabel = "手动选择";
+        [Tooltip("按钮颜色 Button color")] [SerializeField] Color m_ManualButtonColor = new(0.14f, 0.32f, 0.52f, 0.92f);
+
+        [Header("确认弹窗 / Confirm Dialog")]
+        [Tooltip("弹窗宽度 Width")] [SerializeField] float m_ConfirmWidth = 460f;
+        [Tooltip("弹窗高度 Height")] [SerializeField] float m_ConfirmHeight = 220f;
+        [Tooltip("文字大小 Font size")] [SerializeField] int m_ConfirmFontSize = 20;
+        [Tooltip("确认按钮文字 Confirm label")] [SerializeField] string m_ConfirmDeleteLabel = "确认删除";
+        [Tooltip("取消按钮文字 Cancel label")] [SerializeField] string m_CancelLabel = "取消";
+
+        [Header("空状态提示 / Empty Hint")]
+        [Tooltip("无模型时的提示文字 Empty hint text")] [SerializeField] string m_EmptyHintText = "暂无历史模型\n点击左下角\"手动选择\"加载 PLY";
+        [Tooltip("独立模型分区标题 Section header")] [SerializeField] string m_LocalSectionTitle = "独立模型";
+
+        [Header("引用 / References")]
+        [Tooltip("SplatLoadUI 引用（拖入场景中挂 SplatLoadUI 的物体；留空自动查找）\nSplatLoadUI reference (drag here or auto-find)")]
+        [SerializeField] SplatLoadUI m_LoadUI;
+
+        SplatLoadUI LoadUI
+        {
+            get
+            {
+                if (m_LoadUI == null) m_LoadUI = FindFirstObjectByType<SplatLoadUI>();
+                return m_LoadUI;
+            }
+        }
         Button m_ToggleButton;
         GameObject m_Panel;
         RectTransform m_ListContent;
@@ -75,20 +115,6 @@ namespace QGStudio.SplatLoader
         List<LocalEntry> m_Locals = new();
 
         static Font s_Font;
-        // 扁平配色
-        static readonly Color c_PanelBg     = new(0.06f, 0.07f, 0.09f, 0.93f);
-        static readonly Color c_SceneRow    = new(0.12f, 0.14f, 0.18f, 0.88f);
-        static readonly Color c_SceneRowExp = new(0.16f, 0.28f, 0.42f, 0.92f);
-        static readonly Color c_VersionRow  = new(0.08f, 0.09f, 0.12f, 0.75f);
-        static readonly Color c_LocalRow    = new(0.10f, 0.12f, 0.16f, 0.85f);
-        static readonly Color c_DelBtn      = new(0.55f, 0.15f, 0.15f, 0.88f);
-        static readonly Color c_ManualBtn   = new(0.14f, 0.32f, 0.52f, 0.92f);
-        static readonly Color c_ToggleBtn   = new(0.14f, 0.32f, 0.52f, 0.95f);
-        static readonly Color c_Hover       = new(0.18f, 0.22f, 0.3f, 0.95f);
-        static readonly Color c_Pressed      = new(0.1f, 0.12f, 0.18f, 1f);
-        static readonly Color c_TextMain     = Color.white;
-        static readonly Color c_TextSub      = new(0.62f, 0.64f, 0.68f);
-        static readonly Color c_TextHint     = new(0.45f, 0.47f, 0.5f);
 
         class SceneGroup { public string name; public List<VersionEntry> versions = new(); }
         class VersionEntry { public string plyPath; public string fileName; public string precision; public string timestamp; public long splatCount; }
@@ -105,7 +131,7 @@ namespace QGStudio.SplatLoader
         static string NormPath(string p) => string.IsNullOrEmpty(p) ? "" : p.Replace('\\', '/').ToLowerInvariant();
         static DateTime ParseTime(string s) => !string.IsNullOrEmpty(s) && DateTime.TryParse(s, out var d) ? d : DateTime.MinValue;
 
-        void Awake() { m_LoadUI = GetComponent<SplatLoadUI>(); }
+        void Awake() {}
         void Start() { BuildUI(); }
 
         // ================= 构建 =================
@@ -116,8 +142,8 @@ namespace QGStudio.SplatLoader
             if (canvas == null) { Debug.LogError("[SplatHistoryUI] 无 Canvas"); return; }
             var root = canvas.transform;
 
-            m_ToggleButton = CreateButton(root, "SelectModelButton", "选择模型",
-                m_ToggleButtonWidth, m_ToggleButtonHeight, c_ToggleBtn, m_ToggleFontSize);
+            m_ToggleButton = CreateButton(root, "SelectModelButton", m_ToggleButtonLabel,
+                m_ToggleButtonWidth, m_ToggleButtonHeight, m_ToggleButtonColor, m_ToggleFontSize);
             SetTopLeft(m_ToggleButton.GetComponent<RectTransform>(), 20f, -20f);
             m_ToggleButton.onClick.AddListener(OnToggleClicked);
 
@@ -134,17 +160,17 @@ namespace QGStudio.SplatLoader
             rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
             rt.sizeDelta = new Vector2(m_PanelWidth, m_PanelHeight);
-            go.AddComponent<Image>().color = c_PanelBg;
+            go.AddComponent<Image>().color = m_PanelBgColor;
             m_Panel = go;
             m_Panel.SetActive(false);
 
             // 标题
-            var title = CreateText(go.transform, "Title", "选择模型",
-                m_PanelWidth - 80f, 40f, m_TitleFontSize, TextAnchor.MiddleLeft, c_TextMain);
+            var title = CreateText(go.transform, "Title", m_TitleText,
+                m_PanelWidth - 80f, 40f, m_TitleFontSize, TextAnchor.MiddleLeft, m_TextMainColor);
             SetTopLeft(title.rectTransform, 24f, -8f);
 
             // 关闭
-            var closeBtn = CreateButton(go.transform, "CloseBtn", "✕", 40f, 40f, c_DelBtn, 20);
+            var closeBtn = CreateButton(go.transform, "CloseBtn", m_CloseButtonLabel, 40f, 40f, m_DeleteButtonColor, 20);
             var cr = closeBtn.GetComponent<RectTransform>();
             cr.anchorMin = new Vector2(1f, 1f); cr.anchorMax = new Vector2(1f, 1f);
             cr.pivot = new Vector2(1f, 1f); cr.anchoredPosition = new Vector2(-10f, -10f);
@@ -178,8 +204,8 @@ namespace QGStudio.SplatLoader
             m_Scroll.scrollSensitivity = 28f;
 
             // 左下角手动选择按钮（小）
-            var manualBtn = CreateButton(go.transform, "ManualPickBtn", "手动选择",
-                m_ManualButtonWidth, m_ManualButtonHeight, c_ManualBtn, m_ManualFontSize);
+            var manualBtn = CreateButton(go.transform, "ManualPickBtn", m_ManualButtonLabel,
+                m_ManualButtonWidth, m_ManualButtonHeight, m_ManualButtonColor, m_ManualFontSize);
             var mrt = manualBtn.GetComponent<RectTransform>();
             mrt.anchorMin = new Vector2(0f, 0f); mrt.anchorMax = new Vector2(0f, 0f);
             mrt.pivot = new Vector2(0f, 0f); mrt.anchoredPosition = new Vector2(12f, 10f);
@@ -198,17 +224,17 @@ namespace QGStudio.SplatLoader
             m_ConfirmDialog = go; m_ConfirmDialog.SetActive(false);
 
             m_ConfirmText = CreateText(go.transform, "ConfirmText", "",
-                m_ConfirmWidth - 40f, 100f, m_ConfirmFontSize, TextAnchor.UpperLeft, c_TextMain);
+                m_ConfirmWidth - 40f, 100f, m_ConfirmFontSize, TextAnchor.UpperLeft, m_TextMainColor);
             SetTopLeft(m_ConfirmText.rectTransform, 20f, -18f);
 
-            var cancelBtn = CreateButton(go.transform, "CancelBtn", "取消", 150f, 48f,
+            var cancelBtn = CreateButton(go.transform, "CancelBtn", m_CancelLabel, 150f, 48f,
                 new Color(0.25f, 0.26f, 0.3f, 0.95f), m_ConfirmFontSize);
             var cr = cancelBtn.GetComponent<RectTransform>();
             cr.anchorMin = new Vector2(0f, 0f); cr.anchorMax = new Vector2(0f, 0f);
             cr.pivot = new Vector2(0f, 0f); cr.anchoredPosition = new Vector2(36f, 18f);
             cancelBtn.onClick.AddListener(() => { m_ConfirmDialog.SetActive(false); m_PendingConfirmAction = null; });
 
-            var okBtn = CreateButton(go.transform, "OkBtn", "确认删除", 150f, 48f, c_DelBtn, m_ConfirmFontSize);
+            var okBtn = CreateButton(go.transform, "OkBtn", m_ConfirmDeleteLabel, 150f, 48f, m_DeleteButtonColor, m_ConfirmFontSize);
             var or = okBtn.GetComponent<RectTransform>();
             or.anchorMin = new Vector2(1f, 0f); or.anchorMax = new Vector2(1f, 0f);
             or.pivot = new Vector2(1f, 0f); or.anchoredPosition = new Vector2(-36f, 18f);
@@ -296,7 +322,7 @@ namespace QGStudio.SplatLoader
 
             if (m_Scenes.Count == 0 && m_Locals.Count == 0)
             {
-                AddHint("暂无历史模型\n点击左下角\"手动选择\"加载 PLY");
+                AddHint(m_EmptyHintText);
                 return;
             }
 
@@ -312,7 +338,7 @@ namespace QGStudio.SplatLoader
 
             if (m_Locals.Count > 0)
             {
-                AddSectionHeader("独立模型");
+                AddSectionHeader(m_LocalSectionTitle);
                 foreach (var loc in m_Locals)
                     AddLocalRow(loc);
             }
@@ -324,7 +350,7 @@ namespace QGStudio.SplatLoader
         void AddHint(string text)
         {
             var t = CreateText(m_ListContent, "Hint", text, 0f, 80f,
-                m_VersionPrimaryFontSize, TextAnchor.MiddleCenter, c_TextHint);
+                m_VersionPrimaryFontSize, TextAnchor.MiddleCenter, m_TextHintColor);
             var r = t.rectTransform;
             r.anchorMin = new Vector2(0f, 0.5f); r.anchorMax = new Vector2(1f, 0.5f);
             r.pivot = new Vector2(0.5f, 0.5f); r.anchoredPosition = Vector2.zero;
@@ -338,7 +364,7 @@ namespace QGStudio.SplatLoader
             rt.sizeDelta = new Vector2(0f, m_SectionHeaderHeight);
             go.AddComponent<LayoutElement>().preferredHeight = m_SectionHeaderHeight;
             var t = go.AddComponent<Text>();
-            t.font = GetFont(); t.fontSize = m_SceneCountFontSize; t.color = c_TextHint;
+            t.font = GetFont(); t.fontSize = m_SceneCountFontSize; t.color = m_TextHintColor;
             t.text = "— " + title + " —"; t.alignment = TextAnchor.MiddleCenter;
             t.raycastTarget = false;
         }
@@ -362,15 +388,15 @@ namespace QGStudio.SplatLoader
             bgRt.anchorMin = Vector2.zero; bgRt.anchorMax = Vector2.one;
             bgRt.offsetMin = Vector2.zero; bgRt.offsetMax = Vector2.zero;
             var bgImg = bg.AddComponent<Image>();
-            bgImg.color = expanded ? c_SceneRowExp : c_SceneRow;
+            bgImg.color = expanded ? m_SceneRowExpandedColor : m_SceneRowColor;
 
             var btn = bg.AddComponent<Button>();
-            ApplyButtonColors(btn, expanded ? c_SceneRowExp : c_SceneRow);
+            ApplyButtonColors(btn, expanded ? m_SceneRowExpandedColor : m_SceneRowColor);
             btn.onClick.AddListener(() => OnSceneClicked(scene.name));
 
             // 展开箭头
             var arrowTxt = CreateText(bg.transform, "Arrow", arrow, 28f, m_SceneRowHeight,
-                m_SceneCountFontSize, TextAnchor.MiddleCenter, c_TextSub);
+                m_SceneCountFontSize, TextAnchor.MiddleCenter, m_TextSubColor);
             var ar = arrowTxt.rectTransform;
             ar.anchorMin = new Vector2(0f, 0.5f); ar.anchorMax = new Vector2(0f, 0.5f);
             ar.pivot = new Vector2(0f, 0.5f); ar.anchoredPosition = new Vector2(12f, 0f);
@@ -378,7 +404,7 @@ namespace QGStudio.SplatLoader
 
             // 场景名
             var nameTxt = CreateText(bg.transform, "Name", scene.name, 0f, m_SceneRowHeight,
-                m_SceneFontSize, TextAnchor.MiddleLeft, c_TextMain);
+                m_SceneFontSize, TextAnchor.MiddleLeft, m_TextMainColor);
             var nr = nameTxt.rectTransform;
             nr.anchorMin = Vector2.zero; nr.anchorMax = Vector2.one;
             nr.offsetMin = new Vector2(44f, 0f); nr.offsetMax = new Vector2(-(m_DeleteButtonWidth + 60f), 0f);
@@ -386,15 +412,15 @@ namespace QGStudio.SplatLoader
 
             // 版本数
             var countTxt = CreateText(bg.transform, "Count", $"({scene.versions.Count})", 50f, m_SceneRowHeight,
-                m_SceneCountFontSize, TextAnchor.MiddleRight, c_TextSub);
+                m_SceneCountFontSize, TextAnchor.MiddleRight, m_TextSubColor);
             var cr2 = countTxt.rectTransform;
             cr2.anchorMin = new Vector2(1f, 0.5f); cr2.anchorMax = new Vector2(1f, 0.5f);
             cr2.pivot = new Vector2(1f, 0.5f); cr2.anchoredPosition = new Vector2(-(m_DeleteButtonWidth + 8f), 0f);
             countTxt.raycastTarget = false;
 
             // 删除按钮
-            var delBtn = CreateButton(bg.transform, "Del", "删",
-                m_DeleteButtonWidth, m_SceneRowHeight, c_DelBtn, m_SceneCountFontSize);
+            var delBtn = CreateButton(bg.transform, "Del", m_DeleteButtonLabel,
+                m_DeleteButtonWidth, m_SceneRowHeight, m_DeleteButtonColor, m_SceneCountFontSize);
             var dr = delBtn.GetComponent<RectTransform>();
             dr.anchorMin = new Vector2(1f, 0.5f); dr.anchorMax = new Vector2(1f, 0.5f);
             dr.pivot = new Vector2(1f, 0.5f); dr.anchoredPosition = Vector2.zero;
@@ -412,9 +438,9 @@ namespace QGStudio.SplatLoader
             rowGo.AddComponent<LayoutElement>().preferredHeight = m_VersionRowHeight;
 
             var img = rowGo.AddComponent<Image>();
-            img.color = c_VersionRow;
+            img.color = m_VersionRowColor;
             var btn = rowGo.AddComponent<Button>();
-            ApplyButtonColors(btn, c_VersionRow);
+            ApplyButtonColors(btn, m_VersionRowColor);
             btn.onClick.AddListener(() => OnVersionClicked(v));
 
             // 左侧缩进条（视觉层次）
@@ -429,7 +455,7 @@ namespace QGStudio.SplatLoader
 
             // 两行文字：第一行=精度+文件名，第二行=点数+时间
             var label = CreateText(rowGo.transform, "Label", "", 0f, m_VersionRowHeight,
-                m_VersionPrimaryFontSize, TextAnchor.MiddleLeft, c_TextMain);
+                m_VersionPrimaryFontSize, TextAnchor.MiddleLeft, m_TextMainColor);
             var lr = label.rectTransform;
             lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
             lr.offsetMin = new Vector2(m_VersionIndent, 0f);
@@ -442,11 +468,11 @@ namespace QGStudio.SplatLoader
             string line2 = v.splatCount > 0 ? $"{v.splatCount:N0} splats" : "点数未知";
             if (!string.IsNullOrEmpty(v.timestamp)) line2 += "  ·  " + v.timestamp;
             label.text = $"<size={m_VersionPrimaryFontSize}>{prec}</size>" +
-                         $"  <size={m_VersionDetailFontSize}><color=#{ColorToHex(c_TextSub)}>{v.fileName}</color></size>\n" +
-                         $"<size={m_VersionDetailFontSize}><color=#{ColorToHex(c_TextSub)}>{line2}</color></size>";
+                         $"  <size={m_VersionDetailFontSize}><color=#{ColorToHex(m_TextSubColor)}>{v.fileName}</color></size>\n" +
+                         $"<size={m_VersionDetailFontSize}><color=#{ColorToHex(m_TextSubColor)}>{line2}</color></size>";
 
-            var delBtn = CreateButton(rowGo.transform, "Del", "删",
-                m_DeleteButtonWidth, m_VersionRowHeight, c_DelBtn, m_SceneCountFontSize);
+            var delBtn = CreateButton(rowGo.transform, "Del", m_DeleteButtonLabel,
+                m_DeleteButtonWidth, m_VersionRowHeight, m_DeleteButtonColor, m_SceneCountFontSize);
             var dr = delBtn.GetComponent<RectTransform>();
             dr.anchorMin = new Vector2(1f, 0.5f); dr.anchorMax = new Vector2(1f, 0.5f);
             dr.pivot = new Vector2(1f, 0.5f); dr.anchoredPosition = Vector2.zero;
@@ -464,13 +490,13 @@ namespace QGStudio.SplatLoader
             rowGo.AddComponent<LayoutElement>().preferredHeight = m_SceneRowHeight;
 
             var img = rowGo.AddComponent<Image>();
-            img.color = c_LocalRow;
+            img.color = m_LocalRowColor;
             var btn = rowGo.AddComponent<Button>();
-            ApplyButtonColors(btn, c_LocalRow);
+            ApplyButtonColors(btn, m_LocalRowColor);
             btn.onClick.AddListener(() => OnLocalClicked(loc));
 
             var label = CreateText(rowGo.transform, "Label", "", 0f, m_SceneRowHeight,
-                m_VersionPrimaryFontSize, TextAnchor.MiddleLeft, c_TextMain);
+                m_VersionPrimaryFontSize, TextAnchor.MiddleLeft, m_TextMainColor);
             var lr = label.rectTransform;
             lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
             lr.offsetMin = new Vector2(m_VersionIndent, 0f);
@@ -479,12 +505,12 @@ namespace QGStudio.SplatLoader
             label.supportRichText = true;
             string line2 = loc.splatCount > 0 ? $"{loc.splatCount:N0} splats" : "";
             if (!string.IsNullOrEmpty(loc.timestamp)) line2 += (line2.Length > 0 ? "  ·  " : "") + loc.timestamp;
-            label.text = $"<size={m_SceneCountFontSize}><color=#{ColorToHex(c_TextSub)}>[本地]</color></size>  " +
+            label.text = $"<size={m_SceneCountFontSize}><color=#{ColorToHex(m_TextSubColor)}>[本地]</color></size>  " +
                          $"<size={m_VersionPrimaryFontSize}>{loc.fileName}</size>" +
-                         (line2.Length > 0 ? $"\n<size={m_VersionDetailFontSize}><color=#{ColorToHex(c_TextSub)}>{line2}</color></size>" : "");
+                         (line2.Length > 0 ? $"\n<size={m_VersionDetailFontSize}><color=#{ColorToHex(m_TextSubColor)}>{line2}</color></size>" : "");
 
-            var delBtn = CreateButton(rowGo.transform, "Del", "删",
-                m_DeleteButtonWidth, m_SceneRowHeight, c_DelBtn, m_SceneCountFontSize);
+            var delBtn = CreateButton(rowGo.transform, "Del", m_DeleteButtonLabel,
+                m_DeleteButtonWidth, m_SceneRowHeight, m_DeleteButtonColor, m_SceneCountFontSize);
             var dr = delBtn.GetComponent<RectTransform>();
             dr.anchorMin = new Vector2(1f, 0.5f); dr.anchorMax = new Vector2(1f, 0.5f);
             dr.pivot = new Vector2(1f, 0.5f); dr.anchoredPosition = Vector2.zero;
@@ -507,6 +533,7 @@ namespace QGStudio.SplatLoader
             RebuildList();
             m_Panel.SetActive(true);
             m_ConfirmDialog.SetActive(false);
+            LoadUI?.SetUIVisible(false); // 隐去其他 UI（进度条/消息栏/退出按钮），消息记录保留
         }
 
         void ClosePanel()
@@ -514,6 +541,7 @@ namespace QGStudio.SplatLoader
             m_Panel.SetActive(false);
             m_ConfirmDialog.SetActive(false);
             m_PendingConfirmAction = null;
+            LoadUI?.SetUIVisible(true); // 复原其他 UI
         }
 
         void OnSceneClicked(string sceneName)
@@ -525,22 +553,22 @@ namespace QGStudio.SplatLoader
 
         void OnVersionClicked(VersionEntry v)
         {
-            if (m_LoadUI == null || m_LoadUI.IsBusy) { Debug.Log("[SplatHistoryUI] 正在加载，请稍候"); return; }
+            if (LoadUI == null || LoadUI.IsBusy) { Debug.Log("[SplatHistoryUI] 正在加载，请稍候"); return; }
             ClosePanel();
-            m_LoadUI.LoadPath(v.plyPath);
+            LoadUI.LoadPath(v.plyPath);
         }
 
         void OnLocalClicked(LocalEntry loc)
         {
-            if (m_LoadUI == null || m_LoadUI.IsBusy) { Debug.Log("[SplatHistoryUI] 正在加载，请稍候"); return; }
+            if (LoadUI == null || LoadUI.IsBusy) { Debug.Log("[SplatHistoryUI] 正在加载，请稍候"); return; }
             ClosePanel();
-            m_LoadUI.LoadPath(loc.plyPath);
+            LoadUI.LoadPath(loc.plyPath);
         }
 
         void OnManualPickClicked()
         {
             ClosePanel();
-            if (m_LoadUI != null) m_LoadUI.OpenManualPick();
+            LoadUI?.OpenManualPick();
         }
 
         // ---- 删除（二次确认）----
@@ -632,13 +660,13 @@ namespace QGStudio.SplatLoader
             return $"{r:X2}{g:X2}{b:X2}";
         }
 
-        static void ApplyButtonColors(Button btn, Color normal)
+        void ApplyButtonColors(Button btn, Color normal)
         {
             var colors = btn.colors;
             colors.normalColor = normal;
-            colors.highlightedColor = c_Hover;
-            colors.pressedColor = c_Pressed;
-            colors.disabledColor = new Color(0.3f, 0.3f, 0.3f, 0.5f);
+            colors.highlightedColor = m_HoverColor;
+            colors.pressedColor = m_PressedColor;
+            colors.disabledColor = m_DisabledColor;
             btn.colors = colors;
         }
 

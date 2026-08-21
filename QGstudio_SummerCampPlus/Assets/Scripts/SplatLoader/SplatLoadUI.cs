@@ -71,6 +71,7 @@ namespace QGStudio.SplatLoader
         Text m_CurrentStatusText;              // 改造：一行当前状态（原 640×140 多行状态文本）
         ScrollRect m_MessageScroll;
         RectTransform m_MessageContent;
+        Button m_ExitButton;                   // 退出按钮（面板弹出时需隐藏）
 
         float m_DisplayProgress;               // 平滑显示值
         float m_TargetProgress;                // 目标值（OnProgress 设置）
@@ -91,9 +92,6 @@ namespace QGStudio.SplatLoader
             m_Service.OnProgress += OnProgress;
             m_Service.OnError += OnError;
             Application.logMessageReceived += OnLogMessageReceived;
-            // 2b 历史模型面板：左上角"选择模型"按钮 + 弹出列表（零场景配置，自动挂载）
-            if (GetComponent<SplatHistoryUI>() == null)
-                gameObject.AddComponent<SplatHistoryUI>();
         }
 
         void OnDestroy()
@@ -206,12 +204,23 @@ namespace QGStudio.SplatLoader
             AddMessage("就绪：点击左上角\"选择模型\"浏览或加载 PLY", MessageType.Info);
 
             // 退出按钮（右上角，2026-08-18 新增；打包版演示用）
-            var exitBtn = CreateButton(canvas.transform, "SplatExitButton", m_ExitButtonLabel,
+            m_ExitButton = CreateButton(canvas.transform, "SplatExitButton", m_ExitButtonLabel,
                 m_ExitButtonWidth, m_ExitButtonHeight);
-            exitBtn.onClick.AddListener(OnExitClicked);
-            SetTopRight(exitBtn.GetComponent<RectTransform>(), m_ExitOffset.x, m_ExitOffset.y);
-            var exitLabel = exitBtn.GetComponentInChildren<Text>();
+            m_ExitButton.onClick.AddListener(OnExitClicked);
+            SetTopRight(m_ExitButton.GetComponent<RectTransform>(), m_ExitOffset.x, m_ExitOffset.y);
+            var exitLabel = m_ExitButton.GetComponentInChildren<Text>();
             if (exitLabel != null) exitLabel.fontSize = m_ExitFontSize; // 应用退出按钮专属字体
+        }
+
+        /// <summary>显示/隐藏本组件构建的 UI（进度条/状态行/消息栏/退出按钮）。
+        /// 用 SetActive 不销毁——消息栏历史记录保留。SplatHistoryUI 面板开/关时调用。</summary>
+        public void SetUIVisible(bool visible)
+        {
+            if (m_Progress != null) m_Progress.gameObject.SetActive(visible);
+            if (m_PercentText != null) m_PercentText.gameObject.SetActive(visible);
+            if (m_CurrentStatusText != null) m_CurrentStatusText.gameObject.SetActive(visible);
+            if (m_MessageScroll != null) m_MessageScroll.gameObject.SetActive(visible);
+            if (m_ExitButton != null) m_ExitButton.gameObject.SetActive(visible);
         }
 
         /// <summary>左上角锚定（anchor/pivot 均为左上，anchoredPosition = 相对左上角偏移）。</summary>

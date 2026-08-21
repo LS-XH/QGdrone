@@ -129,6 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 109931378}
   - component: {fileID: 109931377}
+  - component: {fileID: 109931379}
   m_Layer: 0
   m_Name: UI
   m_TagString: Untagged
@@ -185,6 +186,64 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &109931379
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 109931376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a338580821d14240b542091e4a9ed5b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::QGStudio.SplatLoader.SplatHistoryUI
+  m_ToggleButtonWidth: 300
+  m_ToggleButtonHeight: 80
+  m_ToggleFontSize: 24
+  m_ToggleButtonLabel: "\u9009\u62E9\u6A21\u578B"
+  m_ToggleButtonColor: {r: 0, g: 0.21653357, b: 0.4566037, a: 0.8352941}
+  m_PanelWidth: 1080
+  m_PanelHeight: 720
+  m_TitleFontSize: 26
+  m_TitleText: "\u9009\u62E9\u6A21\u578B"
+  m_PanelBgColor: {r: 0.06, g: 0.07, b: 0.09, a: 0.93}
+  m_SceneRowHeight: 56
+  m_VersionRowHeight: 56
+  m_SectionHeaderHeight: 36
+  m_SceneFontSize: 24
+  m_SceneCountFontSize: 18
+  m_VersionPrimaryFontSize: 20
+  m_VersionDetailFontSize: 17
+  m_DeleteButtonWidth: 80
+  m_VersionIndent: 36
+  m_SceneRowColor: {r: 0.12, g: 0.14, b: 0.18, a: 0.88}
+  m_SceneRowExpandedColor: {r: 0.16, g: 0.28, b: 0.42, a: 0.92}
+  m_VersionRowColor: {r: 0.08, g: 0.09, b: 0.12, a: 0.75}
+  m_LocalRowColor: {r: 0.1, g: 0.12, b: 0.16, a: 0.85}
+  m_DeleteButtonColor: {r: 0.55, g: 0.15, b: 0.15, a: 0.88}
+  m_DeleteButtonLabel: "\u5220\u9664"
+  m_CloseButtonLabel: "\u2715"
+  m_TextMainColor: {r: 1, g: 1, b: 1, a: 1}
+  m_TextSubColor: {r: 0.62, g: 0.64, b: 0.68, a: 1}
+  m_TextHintColor: {r: 0.45, g: 0.47, b: 0.5, a: 1}
+  m_HoverColor: {r: 0.18, g: 0.22, b: 0.3, a: 0.95}
+  m_PressedColor: {r: 0.1, g: 0.12, b: 0.18, a: 1}
+  m_DisabledColor: {r: 0.3, g: 0.3, b: 0.3, a: 0.5}
+  m_ManualButtonWidth: 140
+  m_ManualButtonHeight: 40
+  m_ManualFontSize: 17
+  m_ManualButtonLabel: "\u624B\u52A8\u9009\u62E9\u6A21\u578B"
+  m_ManualButtonColor: {r: 0.14, g: 0.32, b: 0.52, a: 0.92}
+  m_ConfirmWidth: 460
+  m_ConfirmHeight: 220
+  m_ConfirmFontSize: 20
+  m_ConfirmDeleteLabel: "\u786E\u8BA4\u5220\u9664\uFF1F"
+  m_CancelLabel: "\u53D6\u6D88"
+  m_EmptyHintText: "\u6682\u65E0\u5386\u53F2\u6A21\u578B\n\u70B9\u51FB\u5DE6\u4E0B\u89D2\"\u624B\u52A8\u9009\u62E9\"\u52A0\u8F7D
+    PLY"
+  m_LocalSectionTitle: "\u72EC\u7ACB\u6A21\u578B"
+  m_LoadUI: {fileID: 0}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0

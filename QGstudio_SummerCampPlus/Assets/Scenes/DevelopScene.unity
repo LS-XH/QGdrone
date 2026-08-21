@@ -148,6 +148,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e0e3a787ff89d3448af80ddd9015fe68, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QGStudio.SplatLoader.SplatLoadUI
+  m_Margin: 20
+  m_Spacing: 10
+  m_ButtonWidth: 200
+  m_ButtonHeight: 80
+  m_SliderWidth: 300
+  m_SliderHeight: 24
+  m_PercentWidth: 64
+  m_StatusWidth: 640
+  m_StatusHeight: 30
+  m_FontSizeButton: 22
+  m_FontSizeText: 24
+  m_FontSizeStatus: 20
+  m_FontSizeMessage: 20
+  m_MessageWidth: 520
+  m_MessageHeight: 220
+  m_MaxMessages: 30
+  m_ProgressSpeed: 0.5
+  m_ExitButtonLabel: "\u9000\u51FA\u7A0B\u5E8F"
+  m_ExitButtonWidth: 120
+  m_ExitButtonHeight: 44
+  m_ExitFontSize: 22
+  m_ExitOffset: {x: -20, y: -20}
 --- !u!4 &109931378
 Transform:
   m_ObjectHideFlags: 0
@@ -535,6 +557,67 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &899778619
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 899778622}
+  - component: {fileID: 899778621}
+  - component: {fileID: 899778620}
+  m_Layer: 0
+  m_Name: RenderServer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &899778620
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 899778619}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed6cbedc0f127554ba62302736d8a36c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RenderServer.RenderHandlerExample
+  acceptStart: 1
+--- !u!114 &899778621
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 899778619}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3748ecae0849e3447a0577988158ec6c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RenderServer.RenderClient
+  serverUrl: ws://47.113.224.195:32506/ws/graphics
+  autoFindHandler: 1
+  m_RenderHandler: {fileID: 899778620}
+--- !u!4 &899778622
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 899778619}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -544,3 +627,4 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 435603894}
   - {fileID: 109931378}
+  - {fileID: 899778622}

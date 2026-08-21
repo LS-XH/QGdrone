@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // ============================================================================
-// SplatLoadUI.cs —— 运行时 UI（阶段 1 基础 + 2026-08-17 UI 呈现改造）
+// SplatLoadUI.cs —— 运行时 UI（阶段 1 基础 + 2026-08-17 UI 呈现改造 + 2026-08-21 2b 面板化）
 // 使用方式：场景里放一个空 GameObject 挂本组件（零 Inspector 配置）。
 // Awake 自动构建：
-//   左上角垂直排布：按钮"选择 PLY 文件" + 进度条 Slider + 百分比 + 当前状态行（一行）
+//   左上角垂直排布：进度条 Slider + 百分比 + 当前状态行（一行）
+//     （原"选择 PLY 文件"按钮移交 SplatHistoryUI：左上角"选择模型"按钮 + 弹出历史面板）
 //   左下角：消息框（控制台式：ScrollRect + 新消息追加底部 + 自动滚底 + 上限 30 条）
+// 2b 公开成员（SplatHistoryUI 调用）：LoadPath(path) / OpenManualPick() / IsBusy
+//   —— 与手动加载共用同一个 Service 实例（幂等/进度/消息栏全复用）。
 // 进度条改造（2026-08-17）：
 //   ① 根因修复：Fill 图像改 Simple 类型——UGUI Slider 的填充机制是改 fillRect.anchorMax.x，
 //      原 Filled 类型 + fillAmount=0 导致填充永不渲染（数字能动、条不动）
@@ -15,6 +18,7 @@
 // 字体：LegacyRuntime.ttf（Unity 6000 内置），Arial 兜底（旧版编辑器）。
 // ============================================================================
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -61,7 +65,6 @@ namespace QGStudio.SplatLoader
         readonly SplatRenderService m_Service = new();
         IPlatformFilePicker m_Picker;
 
-        Button m_Button;
         Slider m_Progress;
         Image m_FillImage;                     // 进度条填充图（失败变红用）
         Text m_PercentText;
@@ -75,6 +78,10 @@ namespace QGStudio.SplatLoader
         Stopwatch m_Watch;
         string m_LoadingFileName;
 
+        // 网络层日志转发：Application.logMessageReceived 可能在后台线程触发（async 方法），
+        // 用 ConcurrentQueue 收集，Update 主线程排空 → AddMessage（UGUI 主线程限定）。
+        readonly ConcurrentQueue<(string msg, MessageType type)> m_NetworkLogQueue = new();
+
         enum MessageType { Info, Success, Error, Warning }
 
         void Awake()
@@ -83,16 +90,25 @@ namespace QGStudio.SplatLoader
             BuildUI();
             m_Service.OnProgress += OnProgress;
             m_Service.OnError += OnError;
+            Application.logMessageReceived += OnLogMessageReceived;
+            // 2b 历史模型面板：左上角"选择模型"按钮 + 弹出列表（零场景配置，自动挂载）
+            if (GetComponent<SplatHistoryUI>() == null)
+                gameObject.AddComponent<SplatHistoryUI>();
         }
 
         void OnDestroy()
         {
             m_Service.OnProgress -= OnProgress;
             m_Service.OnError -= OnError;
+            Application.logMessageReceived -= OnLogMessageReceived;
         }
 
         void Update()
         {
+            // 网络层日志排空（主线程，安全操作 UGUI）
+            while (m_NetworkLogQueue.TryDequeue(out var item))
+                AddMessage(item.msg, item.type);
+
             // 进度平滑：显示值向目标值靠拢（转换 12s 内肉眼可见连续前进，不再台阶跳变）
             if (Mathf.Abs(m_DisplayProgress - m_TargetProgress) > 0.001f)
             {
@@ -100,6 +116,27 @@ namespace QGStudio.SplatLoader
                 m_Progress.SetValueWithoutNotify(m_DisplayProgress);
                 m_PercentText.text = Mathf.RoundToInt(m_DisplayProgress * 100f) + "%";
             }
+        }
+
+        /// <summary>
+        /// 捕获 [RenderClient] / [SessionManager] 前缀的 Debug.Log，转发到消息栏。
+        /// 可能在后台线程触发（async WebSocket），只入队不在本回调里碰 UGUI。
+        /// </summary>
+        void OnLogMessageReceived(string condition, string stackTrace, LogType type)
+        {
+            if (!condition.Contains("[RenderClient]") &&
+                !condition.Contains("[SessionManager]"))
+                return;
+
+            MessageType msgType = type switch
+            {
+                LogType.Error or LogType.Assert or LogType.Exception => MessageType.Error,
+                LogType.Warning => MessageType.Warning,
+                _ => MessageType.Info,
+            };
+
+            string msg = condition.Length > 220 ? condition.Substring(0, 220) + "…" : condition;
+            m_NetworkLogQueue.Enqueue((msg, msgType));
         }
 
         static IPlatformFilePicker CreatePicker()
@@ -146,12 +183,10 @@ namespace QGStudio.SplatLoader
 #endif
             }
 
-            // 按钮
-            m_Button = CreateButton(canvas.transform, "SplatLoadButton", "选择 PLY 文件",
-                m_ButtonWidth, m_ButtonHeight);
-            SetTopLeft(m_Button.GetComponent<RectTransform>(), m_Margin, -m_Margin);
+            // （2026-08-21 2b）左上角按钮移交 SplatHistoryUI"选择模型"（历史面板弹出）；
+            // 手动选 PLY 移入面板底部按钮（OpenManualPick）。
 
-            // 进度条 + 百分比文本
+            // 进度条 + 百分比文本（位置不变：原按钮下方）
             float sliderY = -(m_Margin + m_ButtonHeight + m_Spacing);
             m_Progress = CreateSlider(canvas.transform, "SplatLoadProgress", m_SliderWidth, m_SliderHeight);
             SetTopLeft(m_Progress.GetComponent<RectTransform>(), m_Margin, sliderY);
@@ -161,16 +196,14 @@ namespace QGStudio.SplatLoader
 
             // 当前状态行（改造：一行，原 640×140 多行状态文本的信息职责移交左下角消息栏）
             m_CurrentStatusText = CreateText(canvas.transform, "SplatLoadStatus",
-                "就绪：点击上方按钮选择 PLY 文件",
+                "就绪：点击左上角\"选择模型\"浏览或加载 PLY",
                 m_StatusWidth, m_StatusHeight, m_FontSizeStatus, TextAnchor.UpperLeft);
             SetTopLeft(m_CurrentStatusText.rectTransform, m_Margin,
                 -(m_Margin + m_ButtonHeight + m_Spacing + m_SliderHeight + m_Spacing));
 
             // 消息栏（左下角，控制台式滚动）
             CreateMessageBox(canvas.transform);
-            AddMessage("就绪：点击上方按钮选择 PLY 文件", MessageType.Info);
-
-            m_Button.onClick.AddListener(OnPickFileClicked);
+            AddMessage("就绪：点击左上角\"选择模型\"浏览或加载 PLY", MessageType.Info);
 
             // 退出按钮（右上角，2026-08-18 新增；打包版演示用）
             var exitBtn = CreateButton(canvas.transform, "SplatExitButton", m_ExitButtonLabel,
@@ -444,25 +477,44 @@ namespace QGStudio.SplatLoader
             AddMessage("失败：" + message, MessageType.Error);
         }
 
-        async void OnPickFileClicked()
+        // ================ 2b：供 SplatHistoryUI 调用的公开成员 ================
+
+        /// <summary>是否正在加载（历史面板防重入共用）。</summary>
+        public bool IsBusy => m_Busy;
+
+        /// <summary>
+        /// 手动选择本地 PLY（历史面板底部按钮调用）。弹系统文件对话框，选完走 LoadPath。
+        /// </summary>
+        public void OpenManualPick()
         {
             if (m_Busy) return;
             if (m_Picker == null)
             {
-                AddMessage("当前平台未实现文件选择（阶段 1 仅支持 Editor）", MessageType.Error);
+                AddMessage("当前平台未实现文件选择", MessageType.Error);
                 return;
             }
 
             string path = m_Picker.OpenFile();
             if (string.IsNullOrEmpty(path)) return; // 用户取消
+            LoadPath(path);
+        }
+
+        /// <summary>
+        /// 按路径加载（历史面板点击历史条目调用）：与手动加载同一条链路
+        /// （幂等 / 缓存命中秒切 / 进度条 / 消息栏全复用）。
+        /// </summary>
+        public async void LoadPath(string path)
+        {
+            if (m_Busy) return;
 
             m_Busy = true;
-            m_Button.interactable = false; // 防重入
             m_LoadingFileName = path;
             m_CurrentStatusText.text = $"正在加载：{Path.GetFileName(path)}";
             m_TargetProgress = 0f;
             m_DisplayProgress = 0f;
-            m_FillImage.color = new Color(0.2f, 0.8f, 0.35f, 1f); // 复位绿色
+            m_Progress.SetValueWithoutNotify(0f);
+            m_PercentText.text = "0%";
+            if (m_FillImage != null) m_FillImage.color = new Color(0.2f, 0.8f, 0.35f, 1f); // 复位绿色
             m_Watch = Stopwatch.StartNew();
             AddMessage($"开始加载：{Path.GetFileName(path)}", MessageType.Info);
 
@@ -486,7 +538,6 @@ namespace QGStudio.SplatLoader
             {
                 m_Watch.Stop();
                 m_Busy = false;
-                m_Button.interactable = true;
             }
         }
     }

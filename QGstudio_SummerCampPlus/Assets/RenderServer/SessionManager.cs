@@ -255,6 +255,9 @@ namespace RenderServer
             return ok;
         }
 
+        /// <summary>公开只读：读大清单 allModels.json（不存在返回空清单）。图形组历史模型 UI 用。</summary>
+        public static ModelsIndex GetModelsIndex() => LoadModelsIndex();
+
         /// <summary>读大清单 allModels.json（不存在返回空清单）。</summary>
         static ModelsIndex LoadModelsIndex()
         {

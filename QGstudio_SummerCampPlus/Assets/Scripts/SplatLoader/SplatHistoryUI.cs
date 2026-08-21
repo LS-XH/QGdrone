@@ -591,7 +591,7 @@ namespace QGStudio.SplatLoader
 
         void RequestDeleteLocal(LocalEntry loc)
         {
-            m_ConfirmText.text = $"确认删除「{loc.fileName}」？\n将仅清理本地缓存（原 PLY 文件保留）";
+            m_ConfirmText.text = $"确认删除「{loc.fileName}」？\n将删除 PLY 文件 + 本地二进制缓存";
             m_PendingConfirmAction = () => DoDeleteLocal(loc);
             m_ConfirmDialog.SetActive(true);
             m_ConfirmDialog.transform.SetAsLastSibling();
@@ -613,18 +613,84 @@ namespace QGStudio.SplatLoader
         {
             try { SessionManager.DeleteModel(scene.name); }
             catch (Exception e) { Debug.LogError($"[SplatHistoryUI] DeleteModel 失败: {e.Message}"); }
-            foreach (var v in scene.versions) DeleteCacheFor(v.plyPath);
+
+            // DeleteModel 用 Directory.Delete 删文件夹，但不删同级 .meta 孤儿（建筑A/ 删了，建筑A.meta 还在）
+            var modelDir = Path.Combine(SessionManager.IncomingDir, scene.name);
+            DeleteMetaSibling(modelDir);
+
+            foreach (var v in scene.versions)
+            {
+                DeleteMetaSibling(v.plyPath); // 删各 PLY 的 .meta 孤儿
+                DeleteCacheFor(v.plyPath);
+            }
             if (m_ExpandedScene == scene.name) m_ExpandedScene = null;
         }
 
         void DoDeleteVersion(string sceneName, VersionEntry v)
         {
+            // 先删 .ply.meta 孤儿——DeletePly 只删 .ply 不删 .meta，
+            // .meta 残留会让空目录检测失败（GetFileSystemEntries 非空）→ 文件夹清不掉
+            DeleteMetaSibling(v.plyPath);
+
             try { SessionManager.DeletePly(sceneName, v.plyPath); }
             catch (Exception e) { Debug.LogError($"[SplatHistoryUI] DeletePly 失败: {e.Message}"); }
+
+            // DeletePly 删完最后一个版本后 Directory.Delete 了模型文件夹，但不删同级 .meta 孤儿
+            var modelDir = Path.Combine(SessionManager.IncomingDir, sceneName);
+            if (!Directory.Exists(modelDir))
+                DeleteMetaSibling(modelDir);
+
             DeleteCacheFor(v.plyPath);
         }
 
-        void DoDeleteLocal(LocalEntry loc) => DeleteCacheFor(loc.plyPath);
+        void DoDeleteLocal(LocalEntry loc)
+        {
+            // 1. 删 PLY 文件 + .meta 孤儿
+            try
+            {
+                if (File.Exists(loc.plyPath))
+                {
+                    File.Delete(loc.plyPath);
+                    Debug.Log($"[SplatHistoryUI] 已删除 PLY: {loc.plyPath}");
+                }
+                DeleteMetaSibling(loc.plyPath);
+                CleanupEmptyParents(loc.plyPath);
+            }
+            catch (Exception e) { Debug.LogError($"[SplatHistoryUI] 删除 PLY 失败 {loc.plyPath}: {e.Message}"); }
+
+            // 2. 删二进制缓存
+            DeleteCacheFor(loc.plyPath);
+        }
+
+        /// <summary>删除路径同级 .meta 孤儿（Unity 对文件/文件夹都生成 .meta，删除本体后 .meta 残留）。</summary>
+        static void DeleteMetaSibling(string path)
+        {
+            var meta = path + ".meta";
+            if (File.Exists(meta)) { try { File.Delete(meta); } catch { } }
+        }
+
+        /// <summary>向上清理空目录（到 Application.dataPath 为止，不删项目根）。</summary>
+        static void CleanupEmptyParents(string filePath)
+        {
+            try
+            {
+                var dataRoot = Path.GetFullPath(Application.dataPath)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var dir = Path.GetDirectoryName(filePath);
+                while (!string.IsNullOrEmpty(dir) &&
+                       dir.StartsWith(dataRoot, StringComparison.OrdinalIgnoreCase) &&
+                       dir != dataRoot)
+                {
+                    if (Directory.Exists(dir) && Directory.GetFileSystemEntries(dir).Length == 0)
+                    {
+                        Directory.Delete(dir);
+                        dir = Path.GetDirectoryName(dir);
+                    }
+                    else break;
+                }
+            }
+            catch { }
+        }
 
         static void DeleteCacheFor(string plyPath)
         {

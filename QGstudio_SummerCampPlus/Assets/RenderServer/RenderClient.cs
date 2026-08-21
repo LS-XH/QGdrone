@@ -219,46 +219,49 @@ namespace RenderServer
                 EnsureHandler();
                 if (string.IsNullOrEmpty(msg.savedPath) && string.IsNullOrEmpty(msg.fileUrl))
                     throw new Exception("服务器未传 savedPath / fileUrl");
-                localPath = msg.savedPath;
-                if (localPath != null && File.Exists(localPath))
+
+                // 归一化出 模型名 / 轮次 / 文件名（缺的从下载 URL 拆；
+                // URL 形如 …/api/v1/files/<模型>/<轮次>/<文件>，每段都已 URL 编码）。
+                var fileName = !string.IsNullOrEmpty(msg.savedPath) ? Path.GetFileName(msg.savedPath) : msg.filename;
+                var modelName = msg.metadata != null ? msg.metadata.modelName : null;
+                var roundId = msg.roundId;
+                if (TryParseFileUrl(msg.fileUrl, out var urlModel, out var urlRound, out var urlFile))
                 {
-                    // 本机就有服务器路径的文件（服务器这台机器通常就是）：直接用，不走网络。
-                    // 不特殊对待——下面照样记本机 allModels.json。
+                    if (string.IsNullOrEmpty(roundId)) roundId = urlRound;
+                    if (string.IsNullOrEmpty(modelName)) modelName = urlModel;
+                    if (string.IsNullOrEmpty(fileName)) fileName = urlFile;
+                }
+                if (string.IsNullOrEmpty(fileName)) fileName = "download.ply";
+                fileName = SessionManager.SanitizeName(fileName); // 文件名也清洗，防路径穿越
+                modelName = SessionManager.SanitizeName(modelName);
+                roundId = SessionManager.SanitizeName(roundId);
+
+                // 本机库路径：Assets/Data/Incoming/<模型>/<轮次>/<文件>（与服务器落盘结构一致）。
+                // 所有机器（含服务器机）统一按"普通客户端"逻辑：只有自己收到渲染的文件才进本机库。
+                var libPath = Path.Combine(SessionManager.IncomingDir, modelName, roundId, fileName);
+
+                if (File.Exists(libPath))
+                {
+                    // 之前已经存过同一份 → 直接用，不用再下载/复制（索引由 UpsertLocalPly 兜底补）
+                    Debug.Log($"[RenderClient] 本机库已有 {libPath}，直接用");
+                    localPath = libPath;
+                }
+                else if (msg.savedPath != null && File.Exists(msg.savedPath))
+                {
+                    // 本机就是服务器：savedPath 是服务器中转暂存(server/uploads)里的文件。
+                    // 不特殊对待——复制一份进本机库，和远程机器一样只留自己收到渲染的文件。
+                    Directory.CreateDirectory(Path.GetDirectoryName(libPath));
+                    File.Copy(msg.savedPath, libPath);
+                    localPath = libPath;
+                    Debug.Log($"[RenderClient] 从服务器暂存复制进本机库 {libPath}");
                 }
                 else
                 {
-                    // 本机没有服务器磁盘上的文件：按 fileUrl 下载一份进本机模型库
-                    // Assets/Data/Incoming/<模型>/<轮次>/…，离线也能看。
+                    // 本机没有服务器暂存的文件：按 fileUrl 下载一份进本机模型库，离线也能看。
                     if (string.IsNullOrEmpty(msg.fileUrl))
-                        throw new Exception($"PLY 本地不存在且服务器未提供下载地址: {localPath}");
-                    var fileName = !string.IsNullOrEmpty(localPath) ? Path.GetFileName(localPath) : msg.filename;
-                    var modelName = msg.metadata != null ? msg.metadata.modelName : null;
-                    var roundId = msg.roundId;
-                    // 旧服务器没随 upload 传 roundId / 元数据缺 modelName 时，从下载 URL 拆
-                    // （URL 形如 …/api/v1/files/<模型>/<轮次>/<文件>，每段都已 URL 编码）
-                    if (TryParseFileUrl(msg.fileUrl, out var urlModel, out var urlRound, out var urlFile))
-                    {
-                        if (string.IsNullOrEmpty(roundId)) roundId = urlRound;
-                        if (string.IsNullOrEmpty(modelName)) modelName = urlModel;
-                        if (string.IsNullOrEmpty(fileName)) fileName = urlFile;
-                    }
-                    if (string.IsNullOrEmpty(fileName)) fileName = "download.ply";
-                    fileName = SessionManager.SanitizeName(fileName); // 文件名也清洗，防路径穿越
-                    modelName = SessionManager.SanitizeName(modelName);
-                    roundId = SessionManager.SanitizeName(roundId);
-                    // 本机库路径：Assets/Data/Incoming/<模型>/<轮次>/<文件>（与服务器落盘结构一致）
-                    var libPath = Path.Combine(SessionManager.IncomingDir, modelName, roundId, fileName);
-                    if (File.Exists(libPath))
-                    {
-                        // 之前已经存过同一份 → 直接用，不用再下载（索引由 UpsertLocalPly 兜底补）
-                        Debug.Log($"[RenderClient] 本机库已有 {libPath}，跳过下载直接渲染");
-                        localPath = libPath;
-                    }
-                    else
-                    {
-                        Debug.Log($"[RenderClient] 本地无 {localPath}，从 {msg.fileUrl} 下载到本机库 {modelName}/{roundId}/…");
-                        localPath = await DownloadPlyAsync(msg.fileUrl, modelName, roundId, fileName);
-                    }
+                        throw new Exception($"PLY 本地不存在且服务器未提供下载地址: {msg.savedPath}");
+                    Debug.Log($"[RenderClient] 本地无 {msg.savedPath}，从 {msg.fileUrl} 下载到本机库 {modelName}/{roundId}/…");
+                    localPath = await DownloadPlyAsync(msg.fileUrl, modelName, roundId, fileName);
                 }
                 if (!File.Exists(localPath))
                     throw new Exception($"PLY 文件不存在: {localPath}");
